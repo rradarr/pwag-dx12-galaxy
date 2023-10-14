@@ -11,4 +11,5 @@
 #include <d3d12.h>
 
 // Other includes
+#include <iostream>
 #include <string>

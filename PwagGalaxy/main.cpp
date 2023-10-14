@@ -1,12 +1,15 @@
 #include "stdafx.h"
-#include <iostream>
 
+#include "ConsoleHelper.h"
 #include "WindowsApplication.h"
 #include "VoyagerEngine.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
-	std::cout << "Hello World!" << std::endl;
+#ifdef _DEBUG
+    if (!CreateNewConsole(1024))
+        return -1;
+#endif // _DEBUG
 
     std::cout << "Hello World!" << std::endl;
 
