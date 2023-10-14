@@ -44,7 +44,7 @@ int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdSho
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
         TranslateMessage(&msg);
-        DispatchMessage(&msg);    // this will call the WindowProc callback
+        DispatchMessage(&msg);  // this will call the WindowProc callback
     }
 
     gameEngine->OnDestroy();
@@ -77,17 +77,18 @@ LRESULT CALLBACK WindowsApplication::WindowProc(HWND hwnd, UINT uMsg, WPARAM wPa
 
     case WM_PAINT:
         {
-            //update and render the game
+            // update and render the game
             gameEngine->OnUpdate();
             gameEngine->OnRender();
 
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
+            // if I don't paint, WM_PAINT shows up constantly
+            //PAINTSTRUCT ps;
+            //HDC hdc = BeginPaint(hwnd, &ps);
 
-            // All painting occurs here, between BeginPaint and EndPaint.
-            FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW));
+            //// All painting occurs here, between BeginPaint and EndPaint.
+            //FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW));
 
-            EndPaint(hwnd, &ps);
+            //EndPaint(hwnd, &ps);
         }
         return 0;
 
