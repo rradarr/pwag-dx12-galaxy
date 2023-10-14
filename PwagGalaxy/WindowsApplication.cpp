@@ -1,84 +1,100 @@
 #include "WindowsApplication.h"
 
-int WindowsApplication::run(HINSTANCE hInstance, int nCmdShow)
+int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdShow)
 {
-	// register window class
-	const wchar_t windowClassName[] = L"Voyager Game Window";
+    // register window class
+    const wchar_t windowClassName[] = L"Game Window";
 
-	WNDCLASS windowClass = {};
-	windowClass.lpfnWndProc		= WindowProc;
-	windowClass.hInstance		= hInstance;
-	windowClass.lpszClassName	= windowClassName;
+    WNDCLASS windowClass = {};
+    windowClass.lpfnWndProc     = WindowProc;
+    windowClass.hInstance       = hInstance;
+    windowClass.lpszClassName   = windowClassName;
 
-	RegisterClass(&windowClass);
+    RegisterClass(&windowClass);
 
-	// create the window
-	HWND windowHanlde = CreateWindowEx(
-		0,								// Optional window styles
-		windowClassName,
-		L"Voyager",						// Window text
-		WS_OVERLAPPEDWINDOW,			// Window style
-		CW_USEDEFAULT, CW_USEDEFAULT,	// Window size
-		CW_USEDEFAULT, CW_USEDEFAULT,	// Window position
-		NULL,							// Parent window    
-		NULL,							// Menu
-		hInstance,						// Instance handle
-		NULL							// Additional application data
-	);
+    RECT windowRect = { 0, 0, static_cast<LONG>(gameEngine->GetWidth()), static_cast<LONG>(gameEngine->GetHeight()) };
+    AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
-	if (windowHanlde == NULL)
-	{
-		// raise some exception or smthn
-	}
+    // create the window
+    HWND windowHanlde = CreateWindowEx(
+        0,                              // Optional window styles
+        windowClassName,
+        gameEngine->GetTitle().c_str(),     // Window text
+        WS_OVERLAPPEDWINDOW,                // Window style
+        CW_USEDEFAULT, CW_USEDEFAULT,       // Window position
+        windowRect.right - windowRect.left,
+        windowRect.bottom - windowRect.top, // Window size
+        NULL,                               // Parent window
+        NULL,                               // Menu
+        hInstance,                          // Instance handle
+        gameEngine                          // Additional application data
+    );
 
-	ShowWindow(windowHanlde, nCmdShow);
+    if (windowHanlde == NULL)
+    {
+        // raise some exception or smthn
+    }
 
-	// additionally: init the game
+    ShowWindow(windowHanlde, nCmdShow);
 
-	// run the message loop
-	MSG msg = { };
-	while (GetMessage(&msg, NULL, 0, 0) > 0)
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);	// this will call the WindowProc callback
-	}
+    gameEngine->OnInit();
 
-	// additionally: clean the game
+    // run the message loop
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);    // this will call the WindowProc callback
+    }
 
-	// Return this part of the WM_QUIT message to Windows.
-	return static_cast<char>(msg.wParam);
+    gameEngine->OnDestroy();
+
+    // Return this part of the WM_QUIT message to Windows.
+    return static_cast<char>(msg.wParam);
 }
 
 LRESULT CALLBACK WindowsApplication::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	switch (uMsg)
-	{
-	case WM_KEYDOWN:
-		// pass static_cast<UINT8>(wParam) to the game
-		return 0;
+    Engine* gameEngine = reinterpret_cast<Engine*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 
-	case WM_KEYUP:
-		// pass static_cast<UINT8>(wParam) to the game
-		return 0;
+    switch (uMsg)
+    {
+    case WM_CREATE:
+        {
+            // Save the DXSample* passed in to CreateWindow.
+            LPCREATESTRUCT pCreateStruct = reinterpret_cast<LPCREATESTRUCT>(lParam);
+            SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pCreateStruct->lpCreateParams));
+        }
+        return 0;
 
-	case WM_PAINT:
-		{
-			//update and render the game
+    case WM_KEYDOWN:
+        gameEngine->OnKeyDown(static_cast<UINT8>(wParam));
+        return 0;
 
-			PAINTSTRUCT ps;
-			HDC hdc = BeginPaint(hwnd, &ps);
+    case WM_KEYUP:
+        gameEngine->OnKeyUp(static_cast<UINT8>(wParam));
+        return 0;
 
-			// All painting occurs here, between BeginPaint and EndPaint.
-			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW));
+    case WM_PAINT:
+        {
+            //update and render the game
+            gameEngine->OnUpdate();
+            gameEngine->OnRender();
 
-			EndPaint(hwnd, &ps);
-		}
-		return 0;
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
 
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		return 0;
-	}
+            // All painting occurs here, between BeginPaint and EndPaint.
+            FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW));
 
-	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+            EndPaint(hwnd, &ps);
+        }
+        return 0;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
