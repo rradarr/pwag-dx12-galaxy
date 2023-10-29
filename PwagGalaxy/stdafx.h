@@ -7,9 +7,14 @@
 // OS includes
 #include <windows.h>
 
-// Direct3D includes
+// my imports
+#include "dx_includes/directx/d3dx12.h"
 #include <d3d12.h>
+#include <dxgi1_6.h>
+#include <D3Dcompiler.h>
+#include <DirectXMath.h>
 
-// Other includes
-#include <iostream>
 #include <string>
+#include <wrl.h>
+#include <shellapi.h>
+#include <iostream>

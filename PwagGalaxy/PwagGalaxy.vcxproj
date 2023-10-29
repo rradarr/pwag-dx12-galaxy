@@ -70,6 +70,22 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -80,6 +96,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -96,6 +113,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -108,6 +126,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -124,6 +143,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
