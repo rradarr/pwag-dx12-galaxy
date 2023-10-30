@@ -50,5 +50,13 @@
     <ClInclude Include="ConsoleHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="dx_includes\DXSampleHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="shaders.hlsl">
+      <Filter>Resource Files</Filter>
+    </CopyFileToFolders>
   </ItemGroup>
 </Project>

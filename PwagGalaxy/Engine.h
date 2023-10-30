@@ -2,6 +2,9 @@
 
 #include "stdafx.h"
 
+#include "dx_includes/DXSampleHelper.h"
+#include "WindowsApplication.h"
+
 class Engine
 {
 public:
@@ -25,5 +28,15 @@ protected:
     float           aspectRatio;
     std::wstring    windowName;
 
+    void GetHardwareAdapter(
+        _In_ IDXGIFactory1* pFactory,
+        _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter,
+        bool requestHighPerformanceAdapter = false);
+
+    std::wstring GetAssetFullPath(LPCWSTR assetName);
+
+private:
+    // Root assets path.
+    std::wstring m_assetsPath;
 };
 

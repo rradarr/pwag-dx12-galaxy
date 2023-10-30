@@ -1,5 +1,7 @@
 #include "WindowsApplication.h"
 
+HWND WindowsApplication::windowHandle = nullptr;
+
 int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdShow)
 {
     // register window class
@@ -16,7 +18,7 @@ int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdSho
     AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
     // create the window
-    HWND windowHanlde = CreateWindowEx(
+    windowHandle = CreateWindowEx(
         0,                              // Optional window styles
         windowClassName,
         gameEngine->GetTitle().c_str(),     // Window text
@@ -30,12 +32,12 @@ int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdSho
         gameEngine                          // Additional application data
     );
 
-    if (windowHanlde == NULL)
+    if (windowHandle == NULL)
     {
         // raise some exception or smthn
     }
 
-    ShowWindow(windowHanlde, nCmdShow);
+    ShowWindow(windowHandle, nCmdShow);
 
     gameEngine->OnInit();
 

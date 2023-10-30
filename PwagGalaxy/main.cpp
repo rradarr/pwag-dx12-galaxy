@@ -1,9 +1,9 @@
 #include "stdafx.h"
 
 #include "ConsoleHelper.h"
-#include "WindowsApplication.h"
 #include "VoyagerEngine.h"
 
+_Use_decl_annotations_
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
 #ifdef _DEBUG
