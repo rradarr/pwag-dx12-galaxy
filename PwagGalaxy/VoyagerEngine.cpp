@@ -3,7 +3,7 @@
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
 {
-    m_frameIndex = 0;
+    frameBufferIndex = 0;
     m_viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, static_cast<float>(windowWidth), static_cast<float>(windowHeight) };
     m_scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(windowWidth), static_cast<LONG>(windowHeight) };
     m_rtvDescriptorSize = 0;
@@ -23,25 +23,40 @@ void VoyagerEngine::OnUpdate()
 
 void VoyagerEngine::OnRender()
 {
+    frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+    WaitForPreviousFrame();
+
     // Record all the commands we need to render the scene into the command list.
     PopulateCommandList();
 
     // Execute the command list.
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+    // Set the signall fence command at the end of the command queue (it will set the value of the fence to the passed m_fenceValue).
+    m_fenceValue[frameBufferIndex]++;
+    ThrowIfFailed(m_commandQueue->Signal(m_fence[frameBufferIndex].Get(), m_fenceValue[frameBufferIndex]));
 
     // Present the frame.
-    ThrowIfFailed(m_swapChain->Present(1, 0));
+    ThrowIfFailed(m_swapChain->Present(0, 0));
 
-    WaitForPreviousFrame();
+    //WaitForPreviousFrame();
 
     //std::cout << "Engine rendered." << std::endl;
 }
 
 void VoyagerEngine::OnDestroy()
 {
-    // Wait for the GPU to be done with all resources.
-    WaitForPreviousFrame();
+    // Wait for the GPU to be done with all frames.
+    //WaitForPreviousFrame();
+    for (int i = 0; i < frameBufferCount; i++) {
+        frameBufferIndex = i;
+        WaitForPreviousFrame();
+    }
+
+    // Get swapchain out out fullscreen before exiting
+    BOOL fs = false;
+    if (m_swapChain->GetFullscreenState(&fs, NULL))
+        m_swapChain->SetFullscreenState(false, NULL);
 
     CloseHandle(m_fenceEvent);
 
@@ -77,10 +92,10 @@ void VoyagerEngine::LoadPipeline()
     ComPtr<IDXGIFactory4> factory;
     ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
-    ComPtr<IDXGIAdapter1> hardwareAdapter;
+    ComPtr<IDXGIAdapter1> hardwareAdapter; // Adapters represent the hardware of each graphics card (including integrated graphics)
     GetHardwareAdapter(factory.Get(), &hardwareAdapter);
 
-    ThrowIfFailed(D3D12CreateDevice(
+    ThrowIfFailed(D3D12CreateDevice( // The device is the logical GPU representation and interface used in DX
         hardwareAdapter.Get(),
         D3D_FEATURE_LEVEL_11_0,
         IID_PPV_ARGS(&m_device)
@@ -95,7 +110,7 @@ void VoyagerEngine::LoadPipeline()
 
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-    swapChainDesc.BufferCount = frames;
+    swapChainDesc.BufferCount = frameBufferCount;
     swapChainDesc.BufferDesc.Width = windowWidth;
     swapChainDesc.BufferDesc.Height = windowHeight;
     swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -117,13 +132,13 @@ void VoyagerEngine::LoadPipeline()
     // This sample does not support fullscreen transitions.
     ThrowIfFailed(factory->MakeWindowAssociation(WindowsApplication::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
 
-    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+    frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     // Create descriptor heaps.
     {
         // Describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-        rtvHeapDesc.NumDescriptors = frames;
+        rtvHeapDesc.NumDescriptors = frameBufferCount;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
@@ -136,15 +151,17 @@ void VoyagerEngine::LoadPipeline()
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
         // Create a RTV for each frame.
-        for (UINT n = 0; n < frames; n++)
+        for (UINT n = 0; n < frameBufferCount; n++)
         {
-            ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
+            ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n]))); // Store pointer to swapchain buffer in m_renderTargets[n]
+            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle); // Create a resource based on the buffer pointer (?) within the heap at rtvHandle
             rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
     }
 
-    ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
+    for (int i = 0; i < frameBufferCount; i++) {
+        ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator[i])));
+    }
 
     std::cout << "Pipeline loaded." << std::endl;
 }
@@ -203,7 +220,7 @@ void VoyagerEngine::LoadAssets()
     }
 
     // Create the command list.
-    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
     // Command lists are created in the recording state, but there is nothing
     // to record yet. The main loop expects it to be closed, so close it now.
@@ -250,8 +267,10 @@ void VoyagerEngine::LoadAssets()
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
-        ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
-        m_fenceValue = 1;
+        for (int i = 0; i < frameBufferCount; i++) {
+            ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence[i])));
+            m_fenceValue[i] = 0;
+        }
 
         // Create an event handle to use for frame synchronization.
         m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -263,7 +282,7 @@ void VoyagerEngine::LoadAssets()
         // Wait for the command list to execute; we are reusing the same command
         // list in our main loop but for now, we just want to wait for setup to
         // complete before continuing.
-        WaitForPreviousFrame();
+        //WaitForPreviousFrame();               !!!!<--------!!!!
     }
 
     std::cout << "Assets loaded." << std::endl;
@@ -271,15 +290,13 @@ void VoyagerEngine::LoadAssets()
 
 void VoyagerEngine::PopulateCommandList()
 {
-    // Command list allocators can only be reset when the associated
-    // command lists have finished execution on the GPU; apps should use
-    // fences to determine GPU execution progress.
-    ThrowIfFailed(m_commandAllocator->Reset());
+    // We already waited for the GPU to finish work for this framebuffer (we cannot reset a commandAllocator before it's commands have finished executing!)
+    ThrowIfFailed(m_commandAllocator[frameBufferIndex]->Reset());
 
     // However, when ExecuteCommandList() is called on a particular command
     // list, that command list can then be reset at any time and must be before
     // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[frameBufferIndex].Get(), m_pipelineState.Get()));
 
     // Set necessary state.
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
@@ -287,10 +304,10 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
     // Indicate that the back buffer will be used as a render target.
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[frameBufferIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     m_commandList->ResourceBarrier(1, &barrier);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), frameBufferIndex, m_rtvDescriptorSize);
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
     // Record commands.
@@ -301,7 +318,7 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->DrawInstanced(3, 1, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
-    barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     m_commandList->ResourceBarrier(1, &barrier);
 
     ThrowIfFailed(m_commandList->Close());
@@ -311,19 +328,15 @@ void VoyagerEngine::WaitForPreviousFrame()
 {
     // WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.
     // This is code implemented as such for simplicity. More advanced samples
-    // illustrate how to use fences for efficient resource usage.
+    // illustrate how to use fences for efficient resource usage.                   - So says Microsoft ~_~
 
-    // Signal and increment the fence value.
-    const UINT64 fence = m_fenceValue;
-    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), fence));
-    m_fenceValue++;
-
-    // Wait until the previous frame is finished.
-    if (m_fence->GetCompletedValue() < fence)
+    // Wait until the previous frame is finished. If the value of the fence associated with the current framebuffer is
+    // less than the current m_fenceValue for the framebuffer, we know that the queue where the fence is has not finished
+    // (at the end of the queue the fence will be set to the m_fenceValue++).
+    if (m_fence[frameBufferIndex]->GetCompletedValue() < m_fenceValue[frameBufferIndex])
     {
-        ThrowIfFailed(m_fence->SetEventOnCompletion(fence, m_fenceEvent));
+        // The m_fenceEvent will trigger when the fence for the current frame buffer reaches the specified value.
+        ThrowIfFailed(m_fence[frameBufferIndex]->SetEventOnCompletion(m_fenceValue[frameBufferIndex], m_fenceEvent));
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
-
-    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }

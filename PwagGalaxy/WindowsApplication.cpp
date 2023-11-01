@@ -47,6 +47,9 @@ int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdSho
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);  // this will call the WindowProc callback
+
+        gameEngine->OnUpdate();
+        gameEngine->OnRender();
     }
 
     gameEngine->OnDestroy();
@@ -80,8 +83,7 @@ LRESULT CALLBACK WindowsApplication::WindowProc(HWND hwnd, UINT uMsg, WPARAM wPa
     case WM_PAINT:
         {
             // update and render the game
-            gameEngine->OnUpdate();
-            gameEngine->OnRender();
+
 
             // if I don't paint, WM_PAINT shows up constantly
             //PAINTSTRUCT ps;
