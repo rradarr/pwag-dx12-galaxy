@@ -20,7 +20,7 @@ public:
     virtual void OnKeyUp(UINT8 keyCode);
 
 private:
-    static const UINT frameBufferCount = 3;
+    static const UINT mc_frameBufferCount = 3;
 
     struct Vertex
     {
@@ -28,29 +28,29 @@ private:
         DirectX::XMFLOAT4 color;
     };
 
-    // Pipeline objects
-    CD3DX12_VIEWPORT m_viewport;
-    CD3DX12_RECT m_scissorRect;
+    // Pipeline objects.
+    CD3DX12_VIEWPORT m_viewport; // Area that the view-space (rasterizer outputt, between 0,1) will be streched to (and make up the screen-space).
+    CD3DX12_RECT m_scissorRect; // Area in cscreen-space that will be drawn.
     ComPtr<ID3D12Device> m_device;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Resource> m_renderTargets[frameBufferCount];
-    ComPtr<ID3D12CommandAllocator> m_commandAllocator[frameBufferCount];
+    ComPtr<ID3D12Resource> m_renderTargets[mc_frameBufferCount];
+    ComPtr<ID3D12CommandAllocator> m_commandAllocator[mc_frameBufferCount];
     ComPtr<ID3D12GraphicsCommandList> m_commandList; // As many as therads, so one. It can be reset immidiately after submitting.
     ComPtr<ID3D12CommandQueue> m_commandQueue;
-    ComPtr<ID3D12RootSignature> m_rootSignature;
+    ComPtr<ID3D12RootSignature> m_rootSignature; // Defines all data that will be used by the shaders (all reasource descriptors + constants).
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
-    ComPtr<ID3D12PipelineState> m_pipelineState;
+    ComPtr<ID3D12PipelineState> m_pipelineState; // Our PSO. Will need more of them. Defines the state of the pipeline (duh).
     UINT m_rtvDescriptorSize;
 
     // App resources.
     ComPtr<ID3D12Resource> m_vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
 
     // Synchronization objects.
-    UINT frameBufferIndex;
+    UINT m_frameBufferIndex;
     HANDLE m_fenceEvent;
-    ComPtr<ID3D12Fence> m_fence[frameBufferCount];
-    UINT64 m_fenceValue[frameBufferCount];
+    ComPtr<ID3D12Fence> m_fence[mc_frameBufferCount];
+    UINT64 m_fenceValue[mc_frameBufferCount];
 
     void LoadPipeline();
     void LoadAssets();
