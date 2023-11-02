@@ -150,11 +150,16 @@ void VoyagerEngine::LoadPipeline()
     {
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
+        // Setup RTV descriptor to specify sRGB format.
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
         // Create a RTV for each frame.
         for (UINT n = 0; n < mc_frameBufferCount; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n]))); // Store pointer to swapchain buffer in m_renderTargets[n]
-            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle); // Create a resource based on the buffer pointer (?) within the heap at rtvHandle
+            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), &rtvDesc, rtvHandle); // Create a resource based on the buffer pointer (?) within the heap at rtvHandle
             rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
     }
@@ -231,7 +236,7 @@ void VoyagerEngine::LoadAssets()
         psoDesc.DepthStencilState.StencilEnable = FALSE;
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         psoDesc.NumRenderTargets = 1;
-        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         psoDesc.SampleMask = UINT_MAX;
         psoDesc.SampleDesc.Count = 1;
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
