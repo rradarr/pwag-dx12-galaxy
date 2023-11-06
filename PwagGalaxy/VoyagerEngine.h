@@ -45,6 +45,8 @@ private:
     // App resources.
     ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
+    ComPtr<ID3D12Resource> m_indexBuffer;
+    D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
     // Synchronization objects.
     UINT m_frameBufferIndex;
@@ -56,5 +58,18 @@ private:
     void LoadAssets();
     void PopulateCommandList();
     void WaitForPreviousFrame();
+
+    void AllocateBuffer(
+        ComPtr<ID3D12Resource>& bufferResource,
+        UINT bufferSize,
+        D3D12_RESOURCE_STATES bufferState,
+        D3D12_HEAP_TYPE heapType);
+
+    void FillBuffer(
+        ComPtr<ID3D12Resource>&  bufferResource,
+        D3D12_SUBRESOURCE_DATA data,
+        ComPtr<ID3D12Resource>&  uploadBufferResource,
+        D3D12_RESOURCE_STATES finalBufferState,
+        bool waitForGPU = true);
 };
 

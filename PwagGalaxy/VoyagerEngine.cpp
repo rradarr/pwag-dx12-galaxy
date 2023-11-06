@@ -266,65 +266,32 @@ void VoyagerEngine::LoadAssets()
 
     // Create the vertex buffer.
     {
-        // Define the geometry for a triangle.
+        // Define the geometry vertices.
         Vertex triangleVertices[] =
         {
-            { { 0.0f, 0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-            { { 0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-            { { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+            { { 0.0f, 0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+            { { 0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+            { { -0.25f, -0.25f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
+//            { { 0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }
+        };
+        // Define the geometry indices.
+        DWORD triangleIndices[] =
+        {
+            0, 2, 1,
+            3, 1, 2
         };
 
-        // Use an upload buffer to get the vertex data to the GPU: first, we copy the vertex data to a buffer on the GPU
-        // which the CPU can write to (upload buffer). Then, we copy contents of that buffer to our actual vertex buffer
-        // which is of type DEFAULT. Default buffers are resident on the GPU, CPU has no access to them and they are much
-        // more performant to use by the GPU.
+        UINT vertexBufferSize = sizeof(triangleVertices);
         ComPtr<ID3D12Resource> uploadBuffer;
-        const UINT vertexBufferSize = sizeof(triangleVertices);
-        CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-        auto desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &heapProps,
-            D3D12_HEAP_FLAG_NONE,
-            &desc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&uploadBuffer)));
-
-        // Copy the triangle data to the upload buffer.
-        //UINT8* pVertexDataBegin;
-        //CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-        //ThrowIfFailed(uploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-        //memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
-        //uploadBuffer->Unmap(0, nullptr);
+        AllocateBuffer(uploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+        AllocateBuffer(m_vertexBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
 
         D3D12_SUBRESOURCE_DATA vertexData = {};
         vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices);
         vertexData.RowPitch = vertexBufferSize;
         vertexData.SlicePitch = vertexBufferSize;
 
-        // Create the actual vertex buffer.
-        heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &heapProps,
-            D3D12_HEAP_FLAG_NONE,
-            &desc,
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            nullptr,
-            IID_PPV_ARGS(&m_vertexBuffer)));
-        m_vertexBuffer->SetName(L"vertex buffer"); // Name for debug purpouses.
-
-        // This starts a command list and records a copy command. (The list is still recording and will need to be closed and executed)
-        UpdateSubresources(m_commandList.Get(), m_vertexBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &vertexData);
-        // Set a resource barrier to transition the buffer from OCPY_DEST to a VERTEX_AND_CONSTANT_BUFFER. (this is also a command)
-        CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-        m_commandList->ResourceBarrier(1, &transitionBarrier);
-        // Execute the command list.
-        m_commandList->Close();
-        ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-        m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
-        m_fenceValue[m_frameBufferIndex]++;
-        m_commandQueue->Signal(m_fence[m_frameBufferIndex].Get(), m_fenceValue[m_frameBufferIndex]);
+        FillBuffer(m_vertexBuffer, vertexData, uploadBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
         // Initialize the vertex buffer view.
         m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
@@ -387,5 +354,38 @@ void VoyagerEngine::WaitForPreviousFrame()
         // The m_fenceEvent will trigger when the fence for the current frame buffer reaches the specified value.
         ThrowIfFailed(m_fence[m_frameBufferIndex]->SetEventOnCompletion(m_fenceValue[m_frameBufferIndex], m_fenceEvent));
         WaitForSingleObject(m_fenceEvent, INFINITE);
+    }
+}
+
+void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, UINT bufferSize, D3D12_RESOURCE_STATES bufferState, D3D12_HEAP_TYPE heapType)
+{
+    CD3DX12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES(heapType);
+    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+    ThrowIfFailed(m_device->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        bufferState,
+        nullptr,
+        IID_PPV_ARGS(&bufferResource)));
+}
+
+/* Copy data to Default buffer with the use of an Upload buffer. Optionally will submit a command list to the gpu and wait for it to finish. */
+void VoyagerEngine::FillBuffer(ComPtr<ID3D12Resource>& bufferResource, D3D12_SUBRESOURCE_DATA data, ComPtr<ID3D12Resource>& uploadBufferResource, D3D12_RESOURCE_STATES finalBufferState, bool waitForGPU)
+{
+    // This starts a command list and records a copy command. (The list is still recording and will need to be closed and executed).
+    UpdateSubresources(m_commandList.Get(), bufferResource.Get(), uploadBufferResource.Get(), 0, 0, 1, &data);
+    // Set a resource barrier to transition the buffer from OCPY_DEST to a VERTEX_AND_CONSTANT_BUFFER. (this is also a command).
+    CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalBufferState);
+    m_commandList->ResourceBarrier(1, &transitionBarrier);
+    if (waitForGPU)
+    {
+        // Execute the command list.
+        m_commandList->Close();
+        ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+        m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
+        m_fenceValue[m_frameBufferIndex]++;
+        m_commandQueue->Signal(m_fence[m_frameBufferIndex].Get(), m_fenceValue[m_frameBufferIndex]);
+        WaitForPreviousFrame();
     }
 }
