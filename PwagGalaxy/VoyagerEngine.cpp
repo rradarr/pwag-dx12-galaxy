@@ -264,42 +264,63 @@ void VoyagerEngine::LoadAssets()
         }
     }
 
-    // Create the vertex buffer.
+    // Create the vertex and index buffers.
     {
-        // Define the geometry vertices.
-        Vertex triangleVertices[] =
+        // Create the vertex buffer
         {
-            { { 0.0f, 0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-            { { 0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-            { { -0.25f, -0.25f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
-//            { { 0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }
-        };
-        // Define the geometry indices.
-        DWORD triangleIndices[] =
-        {
-            0, 2, 1,
-            3, 1, 2
-        };
+            // Define the geometry vertices.
+            Vertex triangleVertices[] =
+            {
+                { { 0.0f, 0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+                { { 0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+                { { -0.25f, -0.25f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
+                { { 0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }
+            };
 
-        UINT vertexBufferSize = sizeof(triangleVertices);
-        ComPtr<ID3D12Resource> uploadBuffer;
-        AllocateBuffer(uploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-        AllocateBuffer(m_vertexBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
+            UINT vertexBufferSize = sizeof(triangleVertices);
+            ComPtr<ID3D12Resource> vertexUploadBuffer;
+            AllocateBuffer(vertexUploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            AllocateBuffer(m_vertexBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
 
-        D3D12_SUBRESOURCE_DATA vertexData = {};
-        vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices);
-        vertexData.RowPitch = vertexBufferSize;
-        vertexData.SlicePitch = vertexBufferSize;
+            D3D12_SUBRESOURCE_DATA vertexData = {};
+            vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices);
+            vertexData.RowPitch = vertexBufferSize;
+            vertexData.SlicePitch = vertexBufferSize;
 
-        FillBuffer(m_vertexBuffer, vertexData, uploadBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+            // We don't close the commandList and wait for it to finish as we have more commands to upload.
+            FillBuffer(m_vertexBuffer, vertexData, vertexUploadBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false);
 
-        // Initialize the vertex buffer view.
-        m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-        m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-        m_vertexBufferView.SizeInBytes = vertexBufferSize;
+            // Initialize the vertex buffer view.
+            m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
+            m_vertexBufferView.StrideInBytes = sizeof(Vertex);
+            m_vertexBufferView.SizeInBytes = vertexBufferSize;
+
+        // Create the index buffer.
+            // Define the geometry indices.
+            DWORD triangleIndices[] =
+            {
+                0, 1, 2,
+                3, 2, 1
+            };
+            UINT indexBufferSize = sizeof(triangleIndices);
+            ComPtr<ID3D12Resource> indexUploadBuffer;
+            AllocateBuffer(indexUploadBuffer, indexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            AllocateBuffer(m_indexBuffer, indexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
+
+            D3D12_SUBRESOURCE_DATA indexData = {};
+            indexData.pData = reinterpret_cast<BYTE*>(triangleIndices);
+            indexData.RowPitch = indexBufferSize;
+            indexData.SlicePitch = indexBufferSize;
+
+            FillBuffer(m_indexBuffer, indexData, indexUploadBuffer, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+
+            // Initialize the index buffer view.
+            m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
+            m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+            m_indexBufferView.SizeInBytes = indexBufferSize;
+        }
+
     }
-
-    WaitForPreviousFrame();
 
     std::cout << "Assets loaded." << std::endl;
 }
@@ -331,7 +352,8 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-    m_commandList->DrawInstanced(3, 1, 0, 0);
+    m_commandList->IASetIndexBuffer(&m_indexBufferView);
+    m_commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -376,7 +398,7 @@ void VoyagerEngine::FillBuffer(ComPtr<ID3D12Resource>& bufferResource, D3D12_SUB
     // This starts a command list and records a copy command. (The list is still recording and will need to be closed and executed).
     UpdateSubresources(m_commandList.Get(), bufferResource.Get(), uploadBufferResource.Get(), 0, 0, 1, &data);
     // Set a resource barrier to transition the buffer from OCPY_DEST to a VERTEX_AND_CONSTANT_BUFFER. (this is also a command).
-    CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalBufferState);
+    CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(bufferResource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalBufferState);
     m_commandList->ResourceBarrier(1, &transitionBarrier);
     if (waitForGPU)
     {
