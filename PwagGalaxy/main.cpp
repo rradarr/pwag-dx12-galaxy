@@ -21,7 +21,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 // TODOs:
 // - render a 3D spinning shape:
-//      - add depth testing
+//      - V add depth testing
 //      - add root signature use for matrices etc
 //      - add deltaTime measurement
 // - display fps:

@@ -42,6 +42,9 @@ private:
     ComPtr<ID3D12PipelineState> m_pipelineState; // Our PSO. Will need more of them. Defines the state of the pipeline (duh).
     UINT m_rtvDescriptorSize;
 
+    ComPtr<ID3D12Resource> m_depthStencilBuffer;
+    ComPtr<ID3D12DescriptorHeap> m_dsHeap;
+
     // App resources.
     ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
@@ -64,6 +67,13 @@ private:
         UINT bufferSize,
         D3D12_RESOURCE_STATES bufferState,
         D3D12_HEAP_TYPE heapType);
+
+    void AllocateBuffer(
+        ComPtr<ID3D12Resource>& bufferResource,
+        CD3DX12_RESOURCE_DESC* resourceDescriptor,
+        D3D12_RESOURCE_STATES bufferState,
+        D3D12_HEAP_TYPE heapType,
+        D3D12_CLEAR_VALUE optimizedClearValue);
 
     void FillBuffer(
         ComPtr<ID3D12Resource>&  bufferResource,
