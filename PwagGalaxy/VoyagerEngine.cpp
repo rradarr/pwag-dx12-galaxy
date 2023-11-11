@@ -271,10 +271,11 @@ void VoyagerEngine::LoadAssets()
             // Define the geometry vertices.
             Vertex triangleVertices[] =
             {
-                { { 0.0f, 0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-                { { 0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-                { { -0.25f, -0.25f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
-                { { 0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }
+                { { -0.25f, -0.25f, -0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 0 BASE BACK LEFT
+                { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f } },  // 1 BASE BACK RIGHT
+                { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f } },   // 2 BASE FRONT RIGHT
+                { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } },   // 3 BASE FRONT LEFT
+                { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f } }         // 4 TOP
             };
 
             UINT vertexBufferSize = sizeof(triangleVertices);
@@ -299,8 +300,12 @@ void VoyagerEngine::LoadAssets()
             // Define the geometry indices.
             DWORD triangleIndices[] =
             {
-                0, 1, 2,
-                3, 2, 1
+                0, 3, 1,    // BASE LEFT
+                1, 3, 2,    // BASE RIGHT
+                4, 0, 1,    // WALL BACK
+                4, 3, 0,    // WALL LEFT
+                4, 1, 2,    // WALL RIGHT
+                4, 2, 3     // WALL FRONT
             };
             UINT indexBufferSize = sizeof(triangleIndices);
             ComPtr<ID3D12Resource> indexUploadBuffer;
@@ -353,7 +358,7 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
     m_commandList->IASetIndexBuffer(&m_indexBufferView);
-    m_commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+    m_commandList->DrawIndexedInstanced(3 * 6, 1, 0, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
