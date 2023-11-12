@@ -28,6 +28,11 @@ private:
         DirectX::XMFLOAT4 color;
     };
 
+    // this is the structure of our constant buffer.
+    struct ConstantBuffer {
+        DirectX::XMFLOAT4 colorMultiplier;
+    };
+
     // Pipeline objects.
     CD3DX12_VIEWPORT m_viewport; // Area that the view-space (rasterizer outputt, between 0,1) will be streched to (and make up the screen-space).
     CD3DX12_RECT m_scissorRect; // Area in cscreen-space that will be drawn.
@@ -50,6 +55,12 @@ private:
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
     ComPtr<ID3D12Resource> m_indexBuffer;
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
+
+    // Constant Descriptor Table resources.
+    ComPtr<ID3D12DescriptorHeap> m_mainHeap[mc_frameBufferCount];
+    ComPtr<ID3D12Resource> m_constantBufferUpload[mc_frameBufferCount];
+    ConstantBuffer m_cbData;
+    UINT8* cbColorMultiplierGPUAddress[mc_frameBufferCount]; // Pointer to the memory location we get when we map our constant buffer.
 
     // Synchronization objects.
     UINT m_frameBufferIndex;
