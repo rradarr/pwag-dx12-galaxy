@@ -3,6 +3,7 @@
 #include "stdafx.h"
 
 #include "Engine.h"
+#include "Camera.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -28,10 +29,18 @@ private:
         DirectX::XMFLOAT4 color;
     };
 
-    // this is the structure of our constant buffer.
-    struct ConstantBuffer {
+    // This is the structure of the color constant buffer (used in the root desriptor table).
+    struct ColorConstantBuffer {
         DirectX::XMFLOAT4 colorMultiplier;
     };
+    // this is the structure of the world, view, projection constant buffer (passed as a root descriptor).
+    struct wvpConstantBuffer {
+        union {
+            DirectX::XMFLOAT4X4 wvpMat;
+            BYTE padding[256]; // Constant buffers must be 256-byte aligned which has to do with constant reads on the GPU.
+        };
+    };
+    //int ConstantBufferPerObjectAlignedSize = (sizeof(wvpConstantBuffer) + 255) & ~255;
 
     // Pipeline objects.
     CD3DX12_VIEWPORT m_viewport; // Area that the view-space (rasterizer outputt, between 0,1) will be streched to (and make up the screen-space).
@@ -57,10 +66,26 @@ private:
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
     // Constant Descriptor Table resources.
-    ComPtr<ID3D12DescriptorHeap> m_mainHeap[mc_frameBufferCount];
-    ComPtr<ID3D12Resource> m_constantBufferUpload[mc_frameBufferCount];
-    ConstantBuffer m_cbData;
+    ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
+    ComPtr<ID3D12Resource> m_constantDescriptorTableBuffers[mc_frameBufferCount];
+    ColorConstantBuffer m_cbData;
     UINT8* cbColorMultiplierGPUAddress[mc_frameBufferCount]; // Pointer to the memory location we get when we map our constant buffer.
+    // Constant Root Descriptors resources.
+    //ComPtr<ID3D12DescriptorHeap> m_constantRootDescriptorHeaps[mc_frameBufferCount];
+    ComPtr<ID3D12Resource> m_constantRootDescriptorBuffers[mc_frameBufferCount];
+    UINT8* cbvGPUAddress[mc_frameBufferCount];
+
+    // Scene objects
+    Camera m_mainCamera;
+    wvpConstantBuffer m_wvpPerObject;
+
+    DirectX::XMFLOAT4X4 pyramid1WorldMat; // our first cubes world matrix (transformation matrix)
+    DirectX::XMFLOAT4X4 pyramid1RotMat; // this will keep track of our rotation for the first cube
+    DirectX::XMFLOAT4 pyramid1Position; // our first cubes position in space
+
+    DirectX::XMFLOAT4X4 pyramid2WorldMat; // our first cubes world matrix (transformation matrix)
+    DirectX::XMFLOAT4X4 pyramid2RotMat; // this will keep track of our rotation for the second cube
+    DirectX::XMFLOAT4 pyramid2PositionOffset; // our second cube will rotate around the first cube, so this is the position offset from the first cube
 
     // Synchronization objects.
     UINT m_frameBufferIndex;
@@ -70,6 +95,7 @@ private:
 
     void LoadPipeline();
     void LoadAssets();
+    void LoadScene();
     void PopulateCommandList();
     void WaitForPreviousFrame();
 

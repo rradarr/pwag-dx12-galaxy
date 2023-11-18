@@ -9,11 +9,17 @@ cbuffer ConstantBuffer : register(b0)
     float4 colorMultiplier;
 }
 
+cbuffer ConstantBuffer : register(b1)
+{
+    float4x4 wvpMatrix;
+}
+
 PSInput VSMain(float4 position : POSITION, float4 color : COLOR)
 {
     PSInput result;
 
-    result.position = position;
+    result.position = mul(position, wvpMatrix);
+    //result.position = position;
     result.color = color * colorMultiplier;
 
     return result;

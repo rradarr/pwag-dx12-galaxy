@@ -13,6 +13,7 @@ void VoyagerEngine::OnInit()
 {
     LoadPipeline();
     LoadAssets();
+    LoadScene();
     std::cout << "Engine initialized." << std::endl;
 }
 
@@ -45,6 +46,68 @@ void VoyagerEngine::OnUpdate()
 
     // copy our ConstantBuffer instance to the mapped constant buffer resource
     memcpy(cbColorMultiplierGPUAddress[m_frameBufferIndex], &m_cbData, sizeof(m_cbData));
+
+    // Update object positions.
+    // create rotation matrices
+    DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
+    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.02f);
+    DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
+
+    // add rotation to cube1's rotation matrix and store it
+    DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&pyramid1RotMat) * rotXMat * rotYMat * rotZMat;
+    DirectX::XMStoreFloat4x4(&pyramid1RotMat, rotMat);
+
+    // create translation matrix for cube 1 from cube 1's position vector
+    DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&pyramid1Position));
+
+    // create cube1's world matrix by first rotating the cube, then positioning the rotated cube
+    DirectX::XMMATRIX worldMat = rotMat * translationMat;
+
+    // store cube1's world matrix
+    DirectX::XMStoreFloat4x4(&pyramid1WorldMat, worldMat);
+
+    // update constant buffer for cube1
+    // create the wvp matrix and store in constant buffer
+    DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat); // load view matrix
+    DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&m_mainCamera.projMat); // load projection matrix
+    DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&pyramid1WorldMat) * viewMat * projMat; // create wvp matrix
+    DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
+    // copy our ConstantBuffer instance to the mapped constant buffer resource
+    memcpy(cbvGPUAddress[m_frameBufferIndex], &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat));
+
+    // now do cube2's world matrix
+    // create rotation matrices for piramid2
+    rotXMat = DirectX::XMMatrixRotationX(0.f);
+    rotYMat = DirectX::XMMatrixRotationY(0.01f);
+    rotZMat = DirectX::XMMatrixRotationZ(0.f);
+
+    // add rotation to cube2's rotation matrix and store it
+    rotMat = rotZMat * (DirectX::XMLoadFloat4x4(&pyramid2RotMat) * (rotXMat * rotYMat));
+    DirectX::XMStoreFloat4x4(&pyramid2RotMat, rotMat);
+
+    // create translation matrix for cube 2 to offset it from cube 1 (its position relative to cube1
+    DirectX::XMMATRIX translationOffsetMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&pyramid2PositionOffset));
+
+    // we want cube 2 to be half the size of cube 1, so we scale it by .5 in all dimensions
+    DirectX::XMMATRIX scaleMat = DirectX::XMMatrixScaling(0.5f, 0.5f, 0.5f);
+
+    // reuse worldMat.
+    // first we scale cube2. scaling happens relative to point 0,0,0, so you will almost always want to scale first
+    // then we translate it.
+    // then we rotate it. rotation always rotates around point 0,0,0
+    // finally we move it to cube 1's position, which will cause it to rotate around cube 1
+    worldMat = scaleMat * translationOffsetMat * rotMat * translationMat;
+
+    wvpMat = DirectX::XMLoadFloat4x4(&pyramid2WorldMat) * viewMat * projMat; // create wvp matrix
+    transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
+
+    // copy our ConstantBuffer instance to the mapped constant buffer resource
+    memcpy(cbvGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat));
+
+    // store cube2's world matrix
+    DirectX::XMStoreFloat4x4(&pyramid2WorldMat, worldMat);
 
     //std::cout << "Engine updated." << std::endl;
 }
@@ -217,11 +280,19 @@ void VoyagerEngine::LoadAssets()
         descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); // we only have one range
         descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; // the pointer to the beginning of our ranges array
 
+        // Create the root descriptor (for wvp matrices)
+        D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
+        rootCBVDescriptor.ShaderRegister = 1;
+        rootCBVDescriptor.RegisterSpace = 0;
+
         // create a root parameter and fill it out
-        D3D12_ROOT_PARAMETER  rootParameters[1]; // only one parameter right now
+        D3D12_ROOT_PARAMETER  rootParameters[2]; // only two parameters right now
         rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // this is a descriptor table
         rootParameters[0].DescriptorTable = descriptorTable; // this is our descriptor table for this root parameter
         rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // our pixel shader will be the only shader accessing this parameter for now
+        rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        rootParameters[1].Descriptor = rootCBVDescriptor;
+        rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
         // Root parameters (first argument) can be root constants, root descriptors or descriptor tables.
@@ -344,7 +415,7 @@ void VoyagerEngine::LoadAssets()
             heapDesc.NumDescriptors = 1;
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_mainHeap[i])));
+            ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_constantDescriptorTableHeaps[i])));
         }
 
         // Create the constant buffer resource heap.
@@ -359,14 +430,14 @@ void VoyagerEngine::LoadAssets()
         {
             // Size of the resource heap must be a multiple of 64KB for single-textures and constant buffers
             // Will be data that is read from so we keep it in the generic read state.
-            AllocateBuffer(m_constantBufferUpload[i], 1042 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-            m_constantBufferUpload[i]->SetName(L"Constant Buffer Upload Resource Heap");
+            AllocateBuffer(m_constantDescriptorTableBuffers[i], 1042 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            m_constantDescriptorTableBuffers[i]->SetName(L"Constant Buffer Table Buffer Upload Resource Heap");
 
             // Create the cbviews.
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-            cbvDesc.BufferLocation = m_constantBufferUpload[i]->GetGPUVirtualAddress();
-            cbvDesc.SizeInBytes = (sizeof(ConstantBuffer) + 255) & ~255;    // CB size is required to be 256-byte aligned.
-            m_device->CreateConstantBufferView(&cbvDesc, m_mainHeap[i]->GetCPUDescriptorHandleForHeapStart());
+            cbvDesc.BufferLocation = m_constantDescriptorTableBuffers[i]->GetGPUVirtualAddress();
+            cbvDesc.SizeInBytes = (sizeof(ColorConstantBuffer) + 255) & ~255;    // CB size is required to be 256-byte aligned.
+            m_device->CreateConstantBufferView(&cbvDesc, m_constantDescriptorTableHeaps[i]->GetCPUDescriptorHandleForHeapStart());
         }
         ZeroMemory(&m_cbData, sizeof(m_cbData)); // Zero out the memory of our data.
 
@@ -374,8 +445,45 @@ void VoyagerEngine::LoadAssets()
         CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (End is less than or equal to begin)
         for (int i = 0; i < mc_frameBufferCount; ++i)
         {
-            m_constantBufferUpload[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress[i]));
+            m_constantDescriptorTableBuffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress[i]));
             memcpy(cbColorMultiplierGPUAddress[i], &m_cbData, sizeof(m_cbData));
+        }
+    }
+    // Create the buffers for wvp martices
+    {
+        // create the constant buffer resource heap
+        // We will update the constant buffer one or more times per frame, so we will use only an upload heap
+        // unlike previously we used an upload heap to upload the vertex and index data, and then copied over
+        // to a default heap. If you plan to use a resource for more than a couple frames, it is usually more
+        // efficient to copy to a default heap where it stays on the gpu. In this case, our constant buffer
+        // will be modified and uploaded at least once per frame, so we only use an upload heap
+
+        // first we will create a resource heap (upload heap) for each frame for the models constant buffers
+        // As you can see, we are allocating 64KB for each resource we create. Buffer resource heaps must be
+        // an alignment of 64KB. We are creating 3 resources, one for each frame. Each constant buffer is
+        // only a 4x4 matrix of floats in this tutorial. So with a float being 4 bytes, we have
+        // 16 floats in one constant buffer, and we will store 2 constant buffers in each
+        // heap, one for each cube, thats only 64x2 bits, or 128 bits we are using for each
+        // resource, and each resource must be at least 64KB (65536 bits)
+        // Create our Constant Buffer descriptor heap
+
+        for (int i = 0; i < mc_frameBufferCount; ++i)
+        {
+            // create resource for cube 1
+            // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
+            AllocateBuffer(m_constantRootDescriptorBuffers[i], 1024 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            m_constantRootDescriptorBuffers[i]->SetName(L"Root Constant Buffer Upload Resource Heap");
+
+            ZeroMemory(&m_wvpPerObject, sizeof(m_wvpPerObject));
+
+            CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (so end is less than or equal to begin)
+            // map the resource heap to get a gpu virtual address to the beginning of the heap
+            ThrowIfFailed(m_constantRootDescriptorBuffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i])));
+
+            // Because of the constant read alignment requirements, constant buffer views must be 256 bit aligned. Our buffers are smaller than 256 bits,
+            // so we need to add spacing between the two buffers, so that the second buffer starts at 256 bits from the beginning of the resource heap.
+            memcpy(cbvGPUAddress[i], &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat)); // cube1's constant buffer data
+            memcpy(cbvGPUAddress[i] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat)); // cube2's constant buffer data
         }
     }
 
@@ -469,6 +577,24 @@ void VoyagerEngine::LoadAssets()
     std::cout << "Assets loaded." << std::endl;
 }
 
+void VoyagerEngine::LoadScene()
+{
+    m_mainCamera.InitCamera(DirectX::XMFLOAT4(0.f, 0.f, -4.f, 0.f), DirectX::XMFLOAT4(0.f, 0.f, 0.f, 0.f), aspectRatio);
+
+    //position piramids
+    pyramid1Position = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&pyramid1Position);
+    DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
+    DirectX::XMStoreFloat4x4(&pyramid1WorldMat, tmpMat);
+    DirectX::XMStoreFloat4x4(&pyramid1RotMat, DirectX::XMMatrixIdentity());
+
+    pyramid2PositionOffset = DirectX::XMFLOAT4(1.5f, 0.0f, 0.0f, 0.0f);
+    posVec = DirectX::XMVectorAdd(DirectX::XMLoadFloat4(&pyramid1Position), DirectX::XMLoadFloat4(&pyramid2PositionOffset));
+    tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
+    DirectX::XMStoreFloat4x4(&pyramid2WorldMat, tmpMat);
+    DirectX::XMStoreFloat4x4(&pyramid2RotMat, DirectX::XMMatrixIdentity());
+}
+
 void VoyagerEngine::PopulateCommandList()
 {
     // We already waited for the GPU to finish work for this framebuffer (we cannot reset a commandAllocator before it's commands have finished executing!)
@@ -479,17 +605,6 @@ void VoyagerEngine::PopulateCommandList()
     // re-recording.
     ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));
 
-    // Set necessary state.
-    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-    m_commandList->RSSetViewports(1, &m_viewport);
-    m_commandList->RSSetScissorRects(1, &m_scissorRect);
-
-    // set constant buffer descriptor heap
-    ID3D12DescriptorHeap* descriptorHeaps[] = { m_mainHeap[m_frameBufferIndex].Get() };
-    m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-    // set the root descriptor table 0 to the constant buffer descriptor heap
-    m_commandList->SetGraphicsRootDescriptorTable(0, m_mainHeap[m_frameBufferIndex]->GetGPUDescriptorHandleForHeapStart());
-
     // Indicate that the back buffer will be used as a render target.
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     m_commandList->ResourceBarrier(1, &barrier);
@@ -499,6 +614,11 @@ void VoyagerEngine::PopulateCommandList()
     // set the render target for the output merger stage (the output of the pipeline)
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
+    // Set necessary state.
+    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+    m_commandList->RSSetViewports(1, &m_viewport);
+    m_commandList->RSSetScissorRects(1, &m_scissorRect);
+
     // Record commands.
     const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
@@ -506,6 +626,19 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
     m_commandList->IASetIndexBuffer(&m_indexBufferView);
+
+    // set constant buffer table descriptor heap
+    ID3D12DescriptorHeap* descriptorHeaps[] = { m_constantDescriptorTableHeaps[m_frameBufferIndex].Get() };
+    m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+    // set the root descriptor table 0 to the constant buffer descriptor heap
+    m_commandList->SetGraphicsRootDescriptorTable(0, m_constantDescriptorTableHeaps[m_frameBufferIndex]->GetGPUDescriptorHandleForHeapStart());
+
+    // draw first pyramid
+    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
+    m_commandList->DrawIndexedInstanced(3 * 6, 1, 0, 0, 0);
+
+    // draw second pyramid
+    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
     m_commandList->DrawIndexedInstanced(3 * 6, 1, 0, 0, 0);
 
     // Indicate that the back buffer will now be used to present.

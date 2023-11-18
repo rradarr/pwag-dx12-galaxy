@@ -20,14 +20,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 }
 
 // TODOs:
-// - render a 3D spinning shape:
+// - V render a 3D spinning shape:
 //      - V add depth testing
-//      - add root signature use for matrices etc
-//      - add deltaTime measurement
+//      - V add root signature use for matrices etc
 // - display fps:
 //      - add text rendering
+//      - add deltaTime measurement
 // - add abstractions:
-//      - model
+//      - scneObject
+//      - camera
 //      - buffer
 //      - command list (with internal status tracking)
 // - replace ComPtr with smart pointers
