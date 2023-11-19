@@ -6,6 +6,7 @@
 
 // OS includes
 #include <windows.h>
+#include <wincodec.h>
 
 // my imports
 #include "dx_includes/directx/d3dx12.h"

@@ -27,6 +27,7 @@ private:
     {
         DirectX::XMFLOAT3 position;
         DirectX::XMFLOAT4 color;
+        DirectX::XMFLOAT2 uvCoordinates;
     };
 
     // This is the structure of the color constant buffer (used in the root desriptor table).
@@ -52,7 +53,7 @@ private:
     ComPtr<ID3D12GraphicsCommandList> m_commandList; // As many as therads, so one. It can be reset immidiately after submitting.
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12RootSignature> m_rootSignature; // Defines all data that will be used by the shaders (all reasource descriptors + constants).
-    ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+    ComPtr<ID3D12DescriptorHeap> m_RTVHeap;
     ComPtr<ID3D12PipelineState> m_pipelineState; // Our PSO. Will need more of them. Defines the state of the pipeline (duh).
     UINT m_rtvDescriptorSize;
 
@@ -64,6 +65,8 @@ private:
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
     ComPtr<ID3D12Resource> m_indexBuffer;
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
+    ComPtr<ID3D12Resource> m_textureBuffer;
+    ComPtr<ID3D12DescriptorHeap> m_SRVHeap; // Shader Resource View Heap for the texture descriptors
 
     // Constant Descriptor Table resources.
     ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
@@ -71,7 +74,6 @@ private:
     ColorConstantBuffer m_cbData;
     UINT8* cbColorMultiplierGPUAddress[mc_frameBufferCount]; // Pointer to the memory location we get when we map our constant buffer.
     // Constant Root Descriptors resources.
-    //ComPtr<ID3D12DescriptorHeap> m_constantRootDescriptorHeaps[mc_frameBufferCount];
     ComPtr<ID3D12Resource> m_constantRootDescriptorBuffers[mc_frameBufferCount];
     UINT8* cbvGPUAddress[mc_frameBufferCount];
 
@@ -110,7 +112,7 @@ private:
         CD3DX12_RESOURCE_DESC* resourceDescriptor,
         D3D12_RESOURCE_STATES bufferState,
         D3D12_HEAP_TYPE heapType,
-        D3D12_CLEAR_VALUE optimizedClearValue);
+        D3D12_CLEAR_VALUE* optimizedClearValue = nullptr);
 
     void FillBuffer(
         ComPtr<ID3D12Resource>&  bufferResource,

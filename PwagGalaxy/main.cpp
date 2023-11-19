@@ -24,7 +24,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - V add depth testing
 //      - V add root signature use for matrices etc
 // - display fps:
-//      - add text rendering
+//      - add text rendering:
+//          - add texture loading:
+//              - load a texture
+//              - display a model with a texture
 //      - add deltaTime measurement
 // - add abstractions:
 //      - scneObject

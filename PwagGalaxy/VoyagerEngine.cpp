@@ -1,5 +1,7 @@
 #include "VoyagerEngine.h"
 
+#include "TextureLoader.h"
+
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
 {
@@ -171,9 +173,12 @@ void VoyagerEngine::LoadPipeline()
 #ifdef _DEBUG
     // Enable D3D12 debug layer
     ComPtr<ID3D12Debug> debugController;
+    ComPtr<ID3D12Debug1> debugController2;
     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
     {
         debugController->EnableDebugLayer();
+        debugController->QueryInterface(IID_PPV_ARGS(&debugController2));
+        debugController2->SetEnableGPUBasedValidation(true);
 
         // Enable additional debug layers.
         dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
@@ -232,14 +237,14 @@ void VoyagerEngine::LoadPipeline()
         rtvHeapDesc.NumDescriptors = mc_frameBufferCount;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
+        ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_RTVHeap)));
 
         m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
     // Create frame resources.
     {
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVHeap->GetCPUDescriptorHandleForHeapStart());
 
         // Setup RTV descriptor to specify sRGB format.
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
@@ -268,44 +273,77 @@ void VoyagerEngine::LoadAssets()
     {
         // create a descriptor range (descriptor table) and fill it out
         // this is a range of descriptors inside a descriptor heap
-        D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1]; // only one range right now
-        descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // this is a range of constant buffer views (descriptors)
-        descriptorTableRanges[0].NumDescriptors = 1; // we only have one constant buffer, so the range is only 1
-        descriptorTableRanges[0].BaseShaderRegister = 0; // start index of the shader registers in the range
-        descriptorTableRanges[0].RegisterSpace = 0; // space 0. can usually be zero
-        descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // this appends the range to the end of the root signature descriptor tables
+        D3D12_DESCRIPTOR_RANGE  descriptorTableVertexRanges[1]; // only one range right now
+        descriptorTableVertexRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // this is a range of constant buffer views (descriptors)
+        descriptorTableVertexRanges[0].NumDescriptors = 1; // we only have one constant buffer, so the range is only 1
+        descriptorTableVertexRanges[0].BaseShaderRegister = 0; // start index of the shader registers in the range
+        descriptorTableVertexRanges[0].RegisterSpace = 0; // space 0. can usually be zero
+        descriptorTableVertexRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // this appends the range to the end of the root signature descriptor tables
 
-        // create a descriptor table
-        D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
-        descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); // we only have one range
-        descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; // the pointer to the beginning of our ranges array
+        // create a descriptor table for the vertex stage
+        D3D12_ROOT_DESCRIPTOR_TABLE descriptorTableVertex;
+        descriptorTableVertex.NumDescriptorRanges = _countof(descriptorTableVertexRanges);
+        descriptorTableVertex.pDescriptorRanges = &descriptorTableVertexRanges[0]; // the pointer to the beginning of our ranges array
+
+        // Create the descriptor range for the texture resource (it needs to be a separate root parameter as it's used by a different shader stage!)
+        D3D12_DESCRIPTOR_RANGE  descriptorTablePixelRanges[1];
+        descriptorTablePixelRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        descriptorTablePixelRanges[0].NumDescriptors = 1;
+        descriptorTablePixelRanges[0].BaseShaderRegister = 0; // t0 in shader
+        descriptorTablePixelRanges[0].RegisterSpace = 0;
+        descriptorTablePixelRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+        // create a descriptor table for the pixel stage
+        D3D12_ROOT_DESCRIPTOR_TABLE descriptorTablePixel;
+        descriptorTablePixel.NumDescriptorRanges = _countof(descriptorTablePixelRanges);
+        descriptorTablePixel.pDescriptorRanges = &descriptorTablePixelRanges[0]; // the pointer to the beginning of our ranges array
 
         // Create the root descriptor (for wvp matrices)
         D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
-        rootCBVDescriptor.ShaderRegister = 1;
+        rootCBVDescriptor.ShaderRegister = 1; // b1 in shader
         rootCBVDescriptor.RegisterSpace = 0;
 
         // create a root parameter and fill it out
-        D3D12_ROOT_PARAMETER  rootParameters[2]; // only two parameters right now
+        D3D12_ROOT_PARAMETER  rootParameters[3];
         rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // this is a descriptor table
-        rootParameters[0].DescriptorTable = descriptorTable; // this is our descriptor table for this root parameter
-        rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // our pixel shader will be the only shader accessing this parameter for now
+        rootParameters[0].DescriptorTable = descriptorTableVertex; // this is our descriptor table for this root parameter
+        rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // vertex will access cbv
+
         rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         rootParameters[1].Descriptor = rootCBVDescriptor;
         rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+        rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // this is a descriptor table
+        rootParameters[2].DescriptorTable = descriptorTablePixel; // this is our descriptor table for this root parameter
+        rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // pixel will access srv (texture)
+
+        // Create the static sample description.
+        D3D12_STATIC_SAMPLER_DESC sampler = {};
+        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        sampler.MipLODBias = 0;
+        sampler.MaxAnisotropy = 0;
+        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        sampler.MinLOD = 0.f;
+        sampler.MaxLOD = D3D12_FLOAT32_MAX;
+        sampler.ShaderRegister = 0; // s0 in shader
+        sampler.RegisterSpace = 0;
+        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
         // Root parameters (first argument) can be root constants, root descriptors or descriptor tables.
         rootSignatureDesc.Init(
             _countof(rootParameters),
             rootParameters,
-            0,
-            nullptr,
+            1,
+            &sampler,
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // we can deny shader stages here for better performance
             D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS);
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
@@ -328,13 +366,13 @@ void VoyagerEngine::LoadAssets()
         UINT compileFlags = 0;
 #endif
         // When debugging, compiling at runtime provides descriptive errors. At release, precompiled shader bytecode should be loaded.
-        if (FAILED(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, vertexShaderErrors.GetAddressOf())))
+        if (FAILED(D3DCompileFromFile(GetAssetFullPath(L"VertexShader.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_1", compileFlags, 0, &vertexShader, vertexShaderErrors.GetAddressOf())))
         {
             OutputDebugStringA((char *)vertexShaderErrors->GetBufferPointer());
             shaderCompilationFailed = true;
         }
 
-        if (FAILED(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, pixelShaderErrors.GetAddressOf())))
+        if (FAILED(D3DCompileFromFile(GetAssetFullPath(L"PixelShader.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_1", compileFlags, 0, &pixelShader, pixelShaderErrors.GetAddressOf())))
         {
             OutputDebugStringA((char*)pixelShaderErrors->GetBufferPointer());
             shaderCompilationFailed = true;
@@ -349,7 +387,8 @@ void VoyagerEngine::LoadAssets()
         D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
         {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
         };
 
         // Prepare the depth/stencil descpriptor for the PSO creation
@@ -416,6 +455,7 @@ void VoyagerEngine::LoadAssets()
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
             ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_constantDescriptorTableHeaps[i])));
+            m_constantDescriptorTableHeaps[i]->SetName(L"Constant Descriptor Table Heap");
         }
 
         // Create the constant buffer resource heap.
@@ -494,11 +534,11 @@ void VoyagerEngine::LoadAssets()
             // Define the geometry vertices.
             Vertex triangleVertices[] =
             {
-                { { -0.25f, -0.25f, -0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 0 BASE BACK LEFT
-                { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f } },  // 1 BASE BACK RIGHT
-                { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f } },   // 2 BASE FRONT RIGHT
-                { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } },   // 3 BASE FRONT LEFT
-                { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f } }         // 4 TOP
+                { { -0.25f, -0.25f, -0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 0.f} }, // 0 BASE BACK LEFT
+                { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 0.f} },  // 1 BASE BACK RIGHT
+                { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f }, {1.f, 1.f} },   // 2 BASE FRONT RIGHT
+                { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 1.f} },   // 3 BASE FRONT LEFT
+                { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 1.f} }         // 4 TOP
             };
 
             UINT vertexBufferSize = sizeof(triangleVertices);
@@ -548,6 +588,49 @@ void VoyagerEngine::LoadAssets()
             m_indexBufferView.SizeInBytes = indexBufferSize;
         }
 
+        // Load the texture
+        {
+            // We will need a command list for the texture upload, so we need to reset it
+            // (after using it and waiting on it during index and vertex buffer uploads).
+            ThrowIfFailed(m_commandAllocator[m_frameBufferIndex]->Reset());
+            ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));
+
+            TextureLoader textureLoader;
+            D3D12_RESOURCE_DESC textureDesc;
+            int imageBytesPerRow;
+            BYTE* imageData;
+            int imageSize = textureLoader.LoadTextureFromFile(&imageData, textureDesc, GetAssetFullPath(L"texture.png").c_str(), imageBytesPerRow);
+
+            CD3DX12_RESOURCE_DESC desc(textureDesc);
+            UINT64 textureUploadBufferSize = 0;
+            m_device->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+            ComPtr<ID3D12Resource> textureUploadBuffer;
+            AllocateBuffer(m_textureBuffer, &desc, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
+            AllocateBuffer(textureUploadBuffer, textureUploadBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            D3D12_SUBRESOURCE_DATA textureData = {};
+            textureData.pData = &imageData[0];
+            textureData.RowPitch = imageBytesPerRow;
+            textureData.SlicePitch = imageBytesPerRow * textureDesc.Height;
+            FillBuffer(m_textureBuffer, textureData, textureUploadBuffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            m_textureBuffer->SetName(L"Texture buffer resource");
+
+            // Create the SRV Descriptor Heap
+            D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+            heapDesc.NumDescriptors = 1;
+            heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+            ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_SRVHeap)));
+            m_SRVHeap->SetName(L"SRV Heap");
+
+            // Create the SRV view/descriptor
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Format = textureDesc.Format;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srvDesc.Texture2D.MipLevels = 1;
+            m_device->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, m_SRVHeap->GetCPUDescriptorHandleForHeapStart());
+        }
+
         // Create the depth/stencil heap and buffer.
         {
             D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
@@ -562,7 +645,7 @@ void VoyagerEngine::LoadAssets()
             depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
             CD3DX12_RESOURCE_DESC resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, windowWidth, windowHeight, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-            AllocateBuffer(m_depthStencilBuffer, &resourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT, depthOptimizedClearValue);
+            AllocateBuffer(m_depthStencilBuffer, &resourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT, &depthOptimizedClearValue);
             m_dsHeap->SetName(L"Depth/Stencil Resource Heap");
 
             D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
@@ -609,7 +692,7 @@ void VoyagerEngine::PopulateCommandList()
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     m_commandList->ResourceBarrier(1, &barrier);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVHeap->GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsHeap->GetCPUDescriptorHandleForHeapStart());
     // set the render target for the output merger stage (the output of the pipeline)
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
@@ -627,11 +710,16 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
     m_commandList->IASetIndexBuffer(&m_indexBufferView);
 
-    // set constant buffer table descriptor heap
+    // set constant buffer descriptor table heap and srv descriptor table heap
     ID3D12DescriptorHeap* descriptorHeaps[] = { m_constantDescriptorTableHeaps[m_frameBufferIndex].Get() };
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
     // set the root descriptor table 0 to the constant buffer descriptor heap
     m_commandList->SetGraphicsRootDescriptorTable(0, m_constantDescriptorTableHeaps[m_frameBufferIndex]->GetGPUDescriptorHandleForHeapStart());
+
+    ID3D12DescriptorHeap* srvDescriptorHeaps[] = { m_SRVHeap.Get() };
+    m_commandList->SetDescriptorHeaps(_countof(srvDescriptorHeaps), srvDescriptorHeaps);
+    // set the root descriptor table 2 to the srv
+    m_commandList->SetGraphicsRootDescriptorTable(2, m_SRVHeap->GetGPUDescriptorHandleForHeapStart());
 
     // draw first pyramid
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
@@ -678,7 +766,7 @@ void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, UINT 
         IID_PPV_ARGS(&bufferResource)));
 }
 
-void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, CD3DX12_RESOURCE_DESC* resourceDescriptor, D3D12_RESOURCE_STATES bufferState, D3D12_HEAP_TYPE heapType, D3D12_CLEAR_VALUE optimizedClearValue)
+void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, CD3DX12_RESOURCE_DESC* resourceDescriptor, D3D12_RESOURCE_STATES bufferState, D3D12_HEAP_TYPE heapType, D3D12_CLEAR_VALUE* optimizedClearValue)
 {
     CD3DX12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES(heapType);
     ThrowIfFailed(m_device->CreateCommittedResource(
@@ -686,7 +774,7 @@ void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, CD3DX
         D3D12_HEAP_FLAG_NONE,
         resourceDescriptor,
         bufferState,
-        &optimizedClearValue,
+        optimizedClearValue,
         IID_PPV_ARGS(&bufferResource)));
 }
 
