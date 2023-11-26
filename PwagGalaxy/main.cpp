@@ -26,7 +26,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 // - display fps:
 //      - add text rendering:
 //          - add texture loading:
-//              - load a texture
+//              - V load a texture
+//              - V fix descriptor heaps
+//              - fix black half of pyramid?
 //              - display a model with a texture
 //      - add deltaTime measurement
 // - add abstractions:
@@ -34,6 +36,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - camera
 //      - buffer
 //      - command list (with internal status tracking)
+//      - resources (add resources, based on them allocate heap of good size and create resource views with good offsets. store offsets)
 // - replace ComPtr with smart pointers
 // - load a model:
 //      - ?

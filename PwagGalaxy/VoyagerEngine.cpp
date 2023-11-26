@@ -230,7 +230,7 @@ void VoyagerEngine::LoadPipeline()
 
     m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // Create descriptor heaps.
+    // Create RTV descriptor heaps.
     {
         // Describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
@@ -447,25 +447,26 @@ void VoyagerEngine::LoadAssets()
 
     // Create the buffers for use with the root signature
     {
-        // Create our Constant Buffer descriptor heap
-        for (int i = 0; i < mc_frameBufferCount; ++i)
-        {
-            D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-            heapDesc.NumDescriptors = 1;
-            heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_constantDescriptorTableHeaps[i])));
-            m_constantDescriptorTableHeaps[i]->SetName(L"Constant Descriptor Table Heap");
-        }
+        // Create our main SRV/CBV/UAV descriptor heap
+        D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+        heapDesc.NumDescriptors = mc_frameBufferCount + 1; // Amount of all used descriptors (cbv per frame + one texture)
+        heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
+        m_shaderAccessHeap->SetName(L"Main Shader Access Descriptor Heap");
 
-        // Create the constant buffer resource heap.
+        m_shaderAccessDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        m_shaderAccessHeapHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetCPUDescriptorHandleForHeapStart());
+        m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHandle;
+
+        // Create the constant buffer commited resource.
         // We will update the constant buffer one or more times per frame, so we will use only an upload heap
         // unlike previously we used an upload heap to upload the vertex and index data, and then copied over
         // to a default heap. If you plan to use a resource for more than a couple frames, it is usually more
         // efficient to copy to a default heap where it stays on the gpu. In this case, our constant buffer
-        // will be modified and uploaded at least once per frame, so we only use an upload heap
+        // will be modified and uploaded at least once per frame, so we only use an upload heap.
 
-        // create a resource heap, descriptor heap, and pointer to cbv for each frame
+        // Create the resources as commited resources, and pointers to cbv for each frame
         for (int i = 0; i < mc_frameBufferCount; ++i)
         {
             // Size of the resource heap must be a multiple of 64KB for single-textures and constant buffers
@@ -473,11 +474,16 @@ void VoyagerEngine::LoadAssets()
             AllocateBuffer(m_constantDescriptorTableBuffers[i], 1042 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
             m_constantDescriptorTableBuffers[i]->SetName(L"Constant Buffer Table Buffer Upload Resource Heap");
 
+            m_cbvPerFrameSize = (sizeof(ColorConstantBuffer) + 255) & ~255;
+
             // Create the cbviews.
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
             cbvDesc.BufferLocation = m_constantDescriptorTableBuffers[i]->GetGPUVirtualAddress();
-            cbvDesc.SizeInBytes = (sizeof(ColorConstantBuffer) + 255) & ~255;    // CB size is required to be 256-byte aligned.
-            m_device->CreateConstantBufferView(&cbvDesc, m_constantDescriptorTableHeaps[i]->GetCPUDescriptorHandleForHeapStart());
+            cbvDesc.SizeInBytes = m_cbvPerFrameSize;    // CB size is required to be 256-byte aligned.
+
+            m_device->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
+            m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
+            std::cout << m_shaderAccessHeapHeadHandle.ptr << std::endl;
         }
         ZeroMemory(&m_cbData, sizeof(m_cbData)); // Zero out the memory of our data.
 
@@ -615,12 +621,12 @@ void VoyagerEngine::LoadAssets()
             m_textureBuffer->SetName(L"Texture buffer resource");
 
             // Create the SRV Descriptor Heap
-            D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+            /*D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
             heapDesc.NumDescriptors = 1;
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
             ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_SRVHeap)));
-            m_SRVHeap->SetName(L"SRV Heap");
+            m_SRVHeap->SetName(L"SRV Heap");*/
 
             // Create the SRV view/descriptor
             D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -628,7 +634,8 @@ void VoyagerEngine::LoadAssets()
             srvDesc.Format = textureDesc.Format;
             srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
             srvDesc.Texture2D.MipLevels = 1;
-            m_device->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, m_SRVHeap->GetCPUDescriptorHandleForHeapStart());
+            m_device->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, m_shaderAccessHeapHeadHandle);
+            m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
         }
 
         // Create the depth/stencil heap and buffer.
@@ -711,15 +718,17 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->IASetIndexBuffer(&m_indexBufferView);
 
     // set constant buffer descriptor table heap and srv descriptor table heap
-    ID3D12DescriptorHeap* descriptorHeaps[] = { m_constantDescriptorTableHeaps[m_frameBufferIndex].Get() };
+    ID3D12DescriptorHeap* descriptorHeaps[] = { m_shaderAccessHeap.Get() };
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
     // set the root descriptor table 0 to the constant buffer descriptor heap
-    m_commandList->SetGraphicsRootDescriptorTable(0, m_constantDescriptorTableHeaps[m_frameBufferIndex]->GetGPUDescriptorHandleForHeapStart());
+    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
 
-    ID3D12DescriptorHeap* srvDescriptorHeaps[] = { m_SRVHeap.Get() };
-    m_commandList->SetDescriptorHeaps(_countof(srvDescriptorHeaps), srvDescriptorHeaps);
+    //ID3D12DescriptorHeap* srvDescriptorHeaps[] = { m_SRVHeap.Get() };
+    //m_commandList->SetDescriptorHeaps(_countof(srvDescriptorHeaps), srvDescriptorHeaps);
     // set the root descriptor table 2 to the srv
-    m_commandList->SetGraphicsRootDescriptorTable(2, m_SRVHeap->GetGPUDescriptorHandleForHeapStart());
+    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(3, m_shaderAccessDescriptorSize));
 
     // draw first pyramid
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());

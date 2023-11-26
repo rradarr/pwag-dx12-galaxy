@@ -60,17 +60,22 @@ private:
     ComPtr<ID3D12Resource> m_depthStencilBuffer;
     ComPtr<ID3D12DescriptorHeap> m_dsHeap;
 
+    ComPtr<ID3D12DescriptorHeap> m_shaderAccessHeap; // Main descriptor heap for all SRV/CBV/UAV resource descriptors
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_shaderAccessHeapHandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_shaderAccessHeapHeadHandle;
+    UINT m_shaderAccessDescriptorSize;
+
     // App resources.
     ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
     ComPtr<ID3D12Resource> m_indexBuffer;
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
     ComPtr<ID3D12Resource> m_textureBuffer;
-    ComPtr<ID3D12DescriptorHeap> m_SRVHeap; // Shader Resource View Heap for the texture descriptors
 
     // Constant Descriptor Table resources.
-    ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
+    //ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
     ComPtr<ID3D12Resource> m_constantDescriptorTableBuffers[mc_frameBufferCount];
+    UINT m_cbvPerFrameSize;
     ColorConstantBuffer m_cbData;
     UINT8* cbColorMultiplierGPUAddress[mc_frameBufferCount]; // Pointer to the memory location we get when we map our constant buffer.
     // Constant Root Descriptors resources.
