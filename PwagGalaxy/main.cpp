@@ -25,11 +25,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - V add root signature use for matrices etc
 // - display fps:
 //      - add text rendering:
-//          - add texture loading:
+//          - V add texture loading:
 //              - V load a texture
 //              - V fix descriptor heaps
-//              - fix black half of pyramid?
-//              - display a model with a texture
+//              - V fix black half of pyramid
+//              - V display a model with a texture
 //      - add deltaTime measurement
 // - add abstractions:
 //      - scneObject

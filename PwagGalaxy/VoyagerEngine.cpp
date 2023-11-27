@@ -544,7 +544,7 @@ void VoyagerEngine::LoadAssets()
                 { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 0.f} },  // 1 BASE BACK RIGHT
                 { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f }, {1.f, 1.f} },   // 2 BASE FRONT RIGHT
                 { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 1.f} },   // 3 BASE FRONT LEFT
-                { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 1.f} }         // 4 TOP
+                { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {0.5f, 0.5f} }         // 4 TOP
             };
 
             UINT vertexBufferSize = sizeof(triangleVertices);
