@@ -1,4 +1,7 @@
+#include "stdafx.h"
 #include "WindowsApplication.h"
+
+#include "Engine.h"
 
 HWND WindowsApplication::windowHandle = nullptr;
 

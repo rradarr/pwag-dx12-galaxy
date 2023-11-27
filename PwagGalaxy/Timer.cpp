@@ -1,4 +1,6 @@
+#include "stdafx.h"
 #include "Timer.h"
+
 
 Timer* Timer::instance{ nullptr };
 std::mutex Timer::mutex;

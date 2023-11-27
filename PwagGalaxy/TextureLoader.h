@@ -1,9 +1,5 @@
 #pragma once
 
-#include "stdafx.h"
-
-#include "dx_includes/DXSampleHelper.h"
-
 class TextureLoader
 {
 public:

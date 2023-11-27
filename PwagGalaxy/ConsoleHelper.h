@@ -1,7 +1,5 @@
 #pragma once
 
-#include "stdafx.h"
-
 bool RedirectConsoleIO();
 bool ReleaseConsole();
 void AdjustConsoleBuffer(int16_t minLength);

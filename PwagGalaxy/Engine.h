@@ -1,10 +1,5 @@
 #pragma once
 
-#include "stdafx.h"
-
-#include "dx_includes/DXSampleHelper.h"
-#include "WindowsApplication.h"
-
 class Engine
 {
 public:

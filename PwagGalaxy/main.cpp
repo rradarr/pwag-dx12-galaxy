@@ -2,6 +2,7 @@
 
 #include "ConsoleHelper.h"
 #include "VoyagerEngine.h"
+#include "WindowsApplication.h"
 
 _Use_decl_annotations_
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)

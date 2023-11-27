@@ -8,12 +8,16 @@
 #include <windows.h>
 #include <wincodec.h>
 
+
+
 // my imports
 #include "dx_includes/directx/d3dx12.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <D3Dcompiler.h>
 #include <DirectXMath.h>
+
+#include "tiny_obj_loader/tiny_obj_loader.h"
 
 #include <string>
 #include <wrl.h>

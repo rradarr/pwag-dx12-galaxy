@@ -1,4 +1,8 @@
+#include "stdafx.h"
 #include "TextureLoader.h"
+
+
+#include "dx_includes/DXSampleHelper.h"
 
 IWICImagingFactory* TextureLoader::wicFactory = nullptr;
 

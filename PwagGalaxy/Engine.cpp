@@ -1,4 +1,8 @@
+#include "stdafx.h"
 #include "Engine.h"
+
+
+#include "dx_includes/DXSampleHelper.h"
 
 Engine::Engine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     windowWidth(windowWidth), windowHeight(windowHeight), windowName(windowName)

@@ -1,4 +1,6 @@
+#include "stdafx.h"
 #include "ConsoleHelper.h"
+
 
 bool RedirectConsoleIO()
 {

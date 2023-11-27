@@ -1,9 +1,5 @@
 #pragma once
 
-#include "stdafx.h"
-
-#include "Engine.h"
-
 class Engine;
 
 class WindowsApplication

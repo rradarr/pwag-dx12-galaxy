@@ -1,6 +1,11 @@
+#include "stdafx.h"
 #include "VoyagerEngine.h"
 
+
+#include "dx_includes/DXSampleHelper.h"
 #include "TextureLoader.h"
+#include "WindowsApplication.h"
+#include "Timer.h"
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)

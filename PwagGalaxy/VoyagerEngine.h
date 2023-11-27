@@ -1,10 +1,8 @@
 #pragma once
 
-#include "stdafx.h"
-
 #include "Engine.h"
 #include "Camera.h"
-#include "Timer.h"
+
 
 using Microsoft::WRL::ComPtr;
 
