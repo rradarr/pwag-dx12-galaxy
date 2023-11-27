@@ -19,3 +19,4 @@
 #include <wrl.h>
 #include <shellapi.h>
 #include <iostream>
+#include <memory>

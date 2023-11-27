@@ -6,6 +6,7 @@ VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring w
     Engine(windowWidth, windowHeight, windowName)
 {
     m_frameBufferIndex = 0;
+    m_frameIndex = 0;
     m_viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, static_cast<float>(windowWidth), static_cast<float>(windowHeight) };
     m_scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(windowWidth), static_cast<LONG>(windowHeight) };
     m_rtvDescriptorSize = 0;
@@ -21,6 +22,8 @@ void VoyagerEngine::OnInit()
 
 void VoyagerEngine::OnUpdate()
 {
+    OnEarlyUpdate();
+
     // update app logic, such as moving the camera or figuring out what objects are in view
     static float rIncrement = 0.002f;
     static float gIncrement = 0.006f;
@@ -759,6 +762,24 @@ void VoyagerEngine::WaitForPreviousFrame()
         // The m_fenceEvent will trigger when the fence for the current frame buffer reaches the specified value.
         ThrowIfFailed(m_fence[m_frameBufferIndex]->SetEventOnCompletion(m_fenceValue[m_frameBufferIndex], m_fenceEvent));
         WaitForSingleObject(m_fenceEvent, INFINITE);
+    }
+}
+
+void VoyagerEngine::OnEarlyUpdate()
+{
+    m_frameIndex++;
+
+    // Update the timer values (deltaTime, FPS).
+    Timer* timer = Timer::GetInstance();
+    timer->Update();
+
+    // Update FPS display every half a second.
+    static double timeTillFpsDisplayUpdate = 0.0;
+    timeTillFpsDisplayUpdate += timer->GetDeltaTime();
+    if (timeTillFpsDisplayUpdate > 0.5)
+    {
+        timeTillFpsDisplayUpdate = 0.0;
+        std::cout << timer->GetFps() << "\r";
     }
 }
 

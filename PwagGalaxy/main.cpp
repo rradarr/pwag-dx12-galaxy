@@ -20,17 +20,26 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 }
 
 // TODOs:
+// V = done
+// X = postponed / rejected
+// ~ = in progress
 // - V render a 3D spinning shape:
 //      - V add depth testing
 //      - V add root signature use for matrices etc
-// - display fps:
-//      - add text rendering:
+// - V display fps:
+//      - X add text rendering:
 //          - V add texture loading:
 //              - V load a texture
 //              - V fix descriptor heaps
 //              - V fix black half of pyramid
 //              - V display a model with a texture
-//      - add deltaTime measurement
+//      - V add deltaTime measurement
+// - ~ load a model:
+//      - ?
+// - ~ add wireframe view:
+//      - create a second PSO for wireframe drawing
+//      - detect a specific button press
+//      - switch the PSOs with the button
 // - add abstractions:
 //      - scneObject
 //      - camera
@@ -38,6 +47,3 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - command list (with internal status tracking)
 //      - resources (add resources, based on them allocate heap of good size and create resource views with good offsets. store offsets)
 // - replace ComPtr with smart pointers
-// - load a model:
-//      - ?
-// - add wireframe view

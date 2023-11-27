@@ -4,6 +4,7 @@
 
 #include "Engine.h"
 #include "Camera.h"
+#include "Timer.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -96,6 +97,7 @@ private:
 
     // Synchronization objects.
     UINT m_frameBufferIndex;
+    UINT m_frameIndex;
     HANDLE m_fenceEvent;
     ComPtr<ID3D12Fence> m_fence[mc_frameBufferCount];
     UINT64 m_fenceValue[mc_frameBufferCount];
@@ -105,6 +107,8 @@ private:
     void LoadScene();
     void PopulateCommandList();
     void WaitForPreviousFrame();
+
+    void OnEarlyUpdate();
 
     void AllocateBuffer(
         ComPtr<ID3D12Resource>& bufferResource,
