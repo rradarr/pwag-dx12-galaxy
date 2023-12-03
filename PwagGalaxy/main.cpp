@@ -35,8 +35,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //              - V fix black half of pyramid
 //              - V display a model with a texture
 //      - V add deltaTime measurement
-// - ~ load a model:
-//      - ?
+// - V load a model:
 // - ~ add wireframe view:
 //      - create a second PSO for wireframe drawing
 //      - detect a specific button press

@@ -11,5 +11,5 @@ SamplerState s0 : register(s0);
 float4 PSMain(PSInput input) : SV_TARGET
 {
     //return input.color;
-    return t0.Sample(s0, input.texCoord);
+    return t0.Sample(s0, input.texCoord) * input.color;
 }

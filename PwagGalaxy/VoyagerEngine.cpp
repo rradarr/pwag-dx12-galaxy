@@ -546,22 +546,27 @@ void VoyagerEngine::LoadAssets()
         // Create the vertex buffer
         {
             // Define the geometry vertices.
-            Vertex triangleVertices[] =
-            {
-                { { -0.25f, -0.25f, -0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 0.f} }, // 0 BASE BACK LEFT
-                { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 0.f} },  // 1 BASE BACK RIGHT
-                { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f }, {1.f, 1.f} },   // 2 BASE FRONT RIGHT
-                { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 1.f} },   // 3 BASE FRONT LEFT
-                { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {0.5f, 0.5f} }         // 4 TOP
-            };
+            //Vertex triangleVertices[] =
+            //{
+            //    { { -0.25f, -0.25f, -0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 0.f} }, // 0 BASE BACK LEFT
+            //    { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 0.f} },  // 1 BASE BACK RIGHT
+            //    { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f }, {1.f, 1.f} },   // 2 BASE FRONT RIGHT
+            //    { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 1.f} },   // 3 BASE FRONT LEFT
+            //    { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {0.5f, 0.5f} }         // 4 TOP
+            //};
 
-            UINT vertexBufferSize = sizeof(triangleVertices);
+            std::vector<Vertex> triangleVertices;
+            std::vector<DWORD> triangleIndices;
+            LoadModels(triangleVertices, triangleIndices);
+            m_indexCount = triangleIndices.size();
+
+            UINT vertexBufferSize = triangleVertices.size() * sizeof(Vertex);
             ComPtr<ID3D12Resource> vertexUploadBuffer;
             AllocateBuffer(vertexUploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
             AllocateBuffer(m_vertexBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
 
             D3D12_SUBRESOURCE_DATA vertexData = {};
-            vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices);
+            vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices.data());
             vertexData.RowPitch = vertexBufferSize;
             vertexData.SlicePitch = vertexBufferSize;
 
@@ -575,22 +580,22 @@ void VoyagerEngine::LoadAssets()
 
         // Create the index buffer.
             // Define the geometry indices.
-            DWORD triangleIndices[] =
-            {
-                0, 3, 1,    // BASE LEFT
-                1, 3, 2,    // BASE RIGHT
-                4, 0, 1,    // WALL BACK
-                4, 3, 0,    // WALL LEFT
-                4, 1, 2,    // WALL RIGHT
-                4, 2, 3     // WALL FRONT
-            };
-            UINT indexBufferSize = sizeof(triangleIndices);
+            //DWORD triangleIndices[] =
+            //{
+            //    0, 3, 1,    // BASE LEFT
+            //    1, 3, 2,    // BASE RIGHT
+            //    4, 0, 1,    // WALL BACK
+            //    4, 3, 0,    // WALL LEFT
+            //    4, 1, 2,    // WALL RIGHT
+            //    4, 2, 3     // WALL FRONT
+            //};
+            UINT indexBufferSize = triangleIndices.size() * sizeof(DWORD);
             ComPtr<ID3D12Resource> indexUploadBuffer;
             AllocateBuffer(indexUploadBuffer, indexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
             AllocateBuffer(m_indexBuffer, indexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
 
             D3D12_SUBRESOURCE_DATA indexData = {};
-            indexData.pData = reinterpret_cast<BYTE*>(triangleIndices);
+            indexData.pData = reinterpret_cast<BYTE*>(triangleIndices.data());
             indexData.RowPitch = indexBufferSize;
             indexData.SlicePitch = indexBufferSize;
 
@@ -675,9 +680,72 @@ void VoyagerEngine::LoadAssets()
     std::cout << "Assets loaded." << std::endl;
 }
 
+void VoyagerEngine::LoadModels(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
+{
+    std::wstring inputFileWide = { GetAssetFullPath(L"suzanne.obj").c_str()};
+    std::string inputFile = { inputFileWide.begin(), inputFileWide.end() };
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+
+    std::string warn;
+    std::string err;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputFile.c_str());
+
+    if (!warn.empty()) {
+        std::cout << warn << std::endl;
+    }
+
+    if (!err.empty()) {
+        std::cerr << err << std::endl;
+    }
+
+    if (!ret) {
+        std::cout << "Model did not load!" << std::endl;
+    }
+
+    // Vertices are stored in a vector as x, y, z floats, so vector size is divided by 3.
+    triangleVertices.resize(attrib.vertices.size() / 3);
+
+    // Each shape can be thought of as a separate mesh in the file, so a sum of index
+    // counts for all shapes is needed.
+    unsigned int numOfIndices = 0;
+    for (int shapeID = 0; shapeID < shapes.size(); shapeID++)
+    {
+        numOfIndices += shapes[shapeID].mesh.indices.size();
+    }
+    triangleIndices.resize(numOfIndices);
+
+    // Iterate over shapes in the file.
+    for (int shapeID = 0; shapeID < shapes.size(); shapeID++)
+    {
+        // Iterate over indices in the shape. They index into attrib.vertices as if
+        // each xyz triple was one element (so max index will be attrib.vertices.size / 3)
+        int shapeIndexNumber = shapes[shapeID].mesh.indices.size();
+        for (int vertexID = 0; vertexID < shapeIndexNumber; vertexID++) {
+            triangleIndices[shapeID * shapeIndexNumber + vertexID] = static_cast<DWORD>(shapes[shapeID].mesh.indices[vertexID].vertex_index);
+
+            // Store verte data in put structure.
+            float vertexX, vertexY, vertexZ, vertexU, vertexV;
+            vertexX = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index];
+            vertexY = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index + 1];
+            vertexZ = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index + 2];
+            vertexU = attrib.texcoords[2 * shapes[shapeID].mesh.indices[vertexID].texcoord_index];
+            vertexV = attrib.texcoords[2 * shapes[shapeID].mesh.indices[vertexID].texcoord_index + 1];
+            Vertex vertex = {
+                {vertexX, vertexY, vertexZ},
+                {1.f, 1.f, 1.f, 1.f},
+                {vertexU, vertexV}
+            };
+            triangleVertices[triangleIndices[shapeID * 3 + vertexID]] = vertex;
+        }
+    }
+}
+
 void VoyagerEngine::LoadScene()
 {
-    m_mainCamera.InitCamera(DirectX::XMFLOAT4(0.f, 0.f, -4.f, 0.f), DirectX::XMFLOAT4(0.f, 0.f, 0.f, 0.f), aspectRatio);
+    m_mainCamera.InitCamera(DirectX::XMFLOAT4(0.f, 0.f, -8.f, 0.f), DirectX::XMFLOAT4(0.f, 0.f, 0.f, 0.f), aspectRatio);
 
     //position piramids
     pyramid1Position = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -740,11 +808,11 @@ void VoyagerEngine::PopulateCommandList()
 
     // draw first pyramid
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
-    m_commandList->DrawIndexedInstanced(3 * 6, 1, 0, 0, 0);
+    m_commandList->DrawIndexedInstanced(m_indexCount, 1, 0, 0, 0);
 
     // draw second pyramid
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
-    m_commandList->DrawIndexedInstanced(3 * 6, 1, 0, 0, 0);
+    m_commandList->DrawIndexedInstanced(m_indexCount, 1, 0, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
