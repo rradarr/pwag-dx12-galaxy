@@ -47,8 +47,3 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - command list (with internal status tracking)
 //      - resources (add resources, based on them allocate heap of good size and create resource views with good offsets. store offsets)
 // - replace ComPtr with smart pointers
-
-
-// - buffers
-// - fill buffers
-// - draw

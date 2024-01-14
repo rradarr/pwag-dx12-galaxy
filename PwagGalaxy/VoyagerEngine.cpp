@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "VoyagerEngine.h"
 
-
 #include "dx_includes/DXSampleHelper.h"
 #include "TextureLoader.h"
 #include "WindowsApplication.h"
 #include "Timer.h"
+#include "DXContext.h"
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -176,41 +176,41 @@ void VoyagerEngine::OnKeyUp(UINT8 keyCode)
 
 void VoyagerEngine::LoadPipeline()
 {
-    UINT dxgiFactoryFlags = 0;
-
-#ifdef _DEBUG
-    // Enable D3D12 debug layer
-    ComPtr<ID3D12Debug> debugController;
-    ComPtr<ID3D12Debug1> debugController2;
-    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-    {
-        debugController->EnableDebugLayer();
-        debugController->QueryInterface(IID_PPV_ARGS(&debugController2));
-        debugController2->SetEnableGPUBasedValidation(true);
-
-        // Enable additional debug layers.
-        dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-    }
-#endif
-
-    ComPtr<IDXGIFactory4> factory;
-    ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
-
-    ComPtr<IDXGIAdapter1> hardwareAdapter; // Adapters represent the hardware of each graphics card (including integrated graphics)
-    GetHardwareAdapter(factory.Get(), &hardwareAdapter);
-
-    ThrowIfFailed(D3D12CreateDevice( // The device is the logical GPU representation and interface used in DX
-        hardwareAdapter.Get(),
-        D3D_FEATURE_LEVEL_11_0,
-        IID_PPV_ARGS(&m_device)
-    ));
+//    UINT dxgiFactoryFlags = 0;
+//
+//#ifdef _DEBUG
+//    // Enable D3D12 debug layer
+//    ComPtr<ID3D12Debug> debugController;
+//    ComPtr<ID3D12Debug1> debugController2;
+//    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+//    {
+//        debugController->EnableDebugLayer();
+//        debugController->QueryInterface(IID_PPV_ARGS(&debugController2));
+//        debugController2->SetEnableGPUBasedValidation(true);
+//
+//        // Enable additional debug layers.
+//        dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+//    }
+//#endif
+//
+//    ComPtr<IDXGIFactory4> factory;
+//    ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+//
+//    ComPtr<IDXGIAdapter1> hardwareAdapter; // Adapters represent the hardware of each graphics card (including integrated graphics)
+//    GetHardwareAdapter(factory.Get(), &hardwareAdapter);
+//
+//    ThrowIfFailed(D3D12CreateDevice( // The device is the logical GPU representation and interface used in DX
+//        hardwareAdapter.Get(),
+//        D3D_FEATURE_LEVEL_11_0,
+//        IID_PPV_ARGS(&m_device)
+//    ));
 
     // Describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-    ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
+    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
@@ -225,7 +225,7 @@ void VoyagerEngine::LoadPipeline()
     swapChainDesc.Windowed = TRUE;
 
     ComPtr<IDXGISwapChain> swapChain;
-    ThrowIfFailed(factory->CreateSwapChain(
+    ThrowIfFailed(DXContext::getFactory().Get()->CreateSwapChain(
         m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
         &swapChainDesc,
         &swapChain
@@ -234,7 +234,7 @@ void VoyagerEngine::LoadPipeline()
     ThrowIfFailed(swapChain.As(&m_swapChain));
 
     // This sample does not support fullscreen transitions.
-    ThrowIfFailed(factory->MakeWindowAssociation(WindowsApplication::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
+    ThrowIfFailed(DXContext::getFactory().Get()->MakeWindowAssociation(WindowsApplication::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
 
     m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
@@ -245,9 +245,9 @@ void VoyagerEngine::LoadPipeline()
         rtvHeapDesc.NumDescriptors = mc_frameBufferCount;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_RTVHeap)));
+        ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_RTVHeap)));
 
-        m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        m_rtvDescriptorSize = DXContext::getDevice().Get()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
     // Create frame resources.
@@ -263,13 +263,13 @@ void VoyagerEngine::LoadPipeline()
         for (UINT n = 0; n < mc_frameBufferCount; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n]))); // Store pointer to swapchain buffer in m_renderTargets[n]
-            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), &rtvDesc, rtvHandle); // Create a resource based on the buffer pointer (?) within the heap at rtvHandle
+            DXContext::getDevice().Get()->CreateRenderTargetView(m_renderTargets[n].Get(), &rtvDesc, rtvHandle); // Create a resource based on the buffer pointer (?) within the heap at rtvHandle
             rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
     }
 
     for (int i = 0; i < mc_frameBufferCount; i++) {
-        ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator[i])));
+        ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator[i])));
     }
 
     std::cout << "Pipeline loaded." << std::endl;
@@ -356,7 +356,7 @@ void VoyagerEngine::LoadAssets()
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
         ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-        ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
+        ThrowIfFailed(DXContext::getDevice().Get()->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
     // Create the pipeline state, which includes compiling and loading shaders.
@@ -429,11 +429,11 @@ void VoyagerEngine::LoadAssets()
         psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         psoDesc.SampleMask = UINT_MAX;
         psoDesc.SampleDesc.Count = 1;
-        ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
+        ThrowIfFailed(DXContext::getDevice().Get()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
 
     // Create the command list.
-    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
     // Command lists are created in the recording state, but there is nothing
     // to record yet. The main loop expects it to be closed, so close it now.
@@ -442,7 +442,7 @@ void VoyagerEngine::LoadAssets()
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
         for (int i = 0; i < mc_frameBufferCount; i++) {
-            ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence[i])));
+            ThrowIfFailed(DXContext::getDevice().Get()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence[i])));
             m_fenceValue[i] = 0;
         }
 
@@ -461,10 +461,10 @@ void VoyagerEngine::LoadAssets()
         heapDesc.NumDescriptors = mc_frameBufferCount + 1; // Amount of all used descriptors (cbv per frame + one texture)
         heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
+        ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
         m_shaderAccessHeap->SetName(L"Main Shader Access Descriptor Heap");
 
-        m_shaderAccessDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        m_shaderAccessDescriptorSize = DXContext::getDevice().Get()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         m_shaderAccessHeapHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetCPUDescriptorHandleForHeapStart());
         m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHandle;
 
@@ -490,7 +490,7 @@ void VoyagerEngine::LoadAssets()
             cbvDesc.BufferLocation = m_constantDescriptorTableBuffers[i]->GetGPUVirtualAddress();
             cbvDesc.SizeInBytes = m_cbvPerFrameSize;    // CB size is required to be 256-byte aligned.
 
-            m_device->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
+            DXContext::getDevice().Get()->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
             m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
             std::cout << m_shaderAccessHeapHeadHandle.ptr << std::endl;
         }
@@ -624,7 +624,7 @@ void VoyagerEngine::LoadAssets()
 
             CD3DX12_RESOURCE_DESC desc(textureDesc);
             UINT64 textureUploadBufferSize = 0;
-            m_device->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+            DXContext::getDevice().Get()->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
             ComPtr<ID3D12Resource> textureUploadBuffer;
             AllocateBuffer(m_textureBuffer, &desc, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
             AllocateBuffer(textureUploadBuffer, textureUploadBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
@@ -649,7 +649,7 @@ void VoyagerEngine::LoadAssets()
             srvDesc.Format = textureDesc.Format;
             srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
             srvDesc.Texture2D.MipLevels = 1;
-            m_device->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, m_shaderAccessHeapHeadHandle);
+            DXContext::getDevice().Get()->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, m_shaderAccessHeapHeadHandle);
             m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
         }
 
@@ -659,7 +659,7 @@ void VoyagerEngine::LoadAssets()
             dsvHeapDesc.NumDescriptors = 1;
             dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
             dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-            ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsHeap)));
+            ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsHeap)));
 
             D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
             depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
@@ -675,7 +675,7 @@ void VoyagerEngine::LoadAssets()
             depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
             depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
-            m_device->CreateDepthStencilView(m_depthStencilBuffer.Get(), &depthStencilDesc, m_dsHeap->GetCPUDescriptorHandleForHeapStart());
+            DXContext::getDevice().Get()->CreateDepthStencilView(m_depthStencilBuffer.Get(), &depthStencilDesc, m_dsHeap->GetCPUDescriptorHandleForHeapStart());
         }
     }
 
@@ -972,7 +972,7 @@ void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, UINT 
 {
     CD3DX12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES(heapType);
     CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommittedResource(
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &desc,
@@ -984,7 +984,7 @@ void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, UINT 
 void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, CD3DX12_RESOURCE_DESC* resourceDescriptor, D3D12_RESOURCE_STATES bufferState, D3D12_HEAP_TYPE heapType, D3D12_CLEAR_VALUE* optimizedClearValue)
 {
     CD3DX12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES(heapType);
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommittedResource(
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         resourceDescriptor,

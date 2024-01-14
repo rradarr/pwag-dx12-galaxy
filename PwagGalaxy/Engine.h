@@ -23,10 +23,10 @@ protected:
     float           aspectRatio;
     std::wstring    windowName;
 
-    void GetHardwareAdapter(
+    /*void GetHardwareAdapter(
         _In_ IDXGIFactory1* pFactory,
         _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter,
-        bool requestHighPerformanceAdapter = false);
+        bool requestHighPerformanceAdapter = false);*/
 
     std::wstring GetAssetFullPath(LPCWSTR assetName);
 

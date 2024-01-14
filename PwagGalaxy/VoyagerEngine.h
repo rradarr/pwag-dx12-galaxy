@@ -45,7 +45,7 @@ private:
     // Pipeline objects.
     CD3DX12_VIEWPORT m_viewport; // Area that the view-space (rasterizer outputt, between 0,1) will be streched to (and make up the screen-space).
     CD3DX12_RECT m_scissorRect; // Area in cscreen-space that will be drawn.
-    ComPtr<ID3D12Device> m_device;
+    //ComPtr<ID3D12Device> m_device;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Resource> m_renderTargets[mc_frameBufferCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocator[mc_frameBufferCount];
