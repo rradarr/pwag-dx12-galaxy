@@ -424,6 +424,7 @@ void VoyagerEngine::LoadAssets()
         psoDesc.DepthStencilState = dtDesc;
         psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        //psoDesc.RasterizerState.FrontCounterClockwise = true;
         psoDesc.NumRenderTargets = 1;
         psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         psoDesc.SampleMask = UINT_MAX;
@@ -543,6 +544,7 @@ void VoyagerEngine::LoadAssets()
 
     // Create the vertex and index buffers.
     {
+        CreateSphere();
         // Create the vertex buffer
         {
             // Define the geometry vertices.
@@ -790,8 +792,8 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-    m_commandList->IASetIndexBuffer(&m_indexBufferView);
+    m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferViewBall);
+    m_commandList->IASetIndexBuffer(&m_indexBufferViewBall);
 
     // set constant buffer descriptor table heap and srv descriptor table heap
     ID3D12DescriptorHeap* descriptorHeaps[] = { m_shaderAccessHeap.Get() };
@@ -808,11 +810,11 @@ void VoyagerEngine::PopulateCommandList()
 
     // draw first pyramid
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
-    m_commandList->DrawIndexedInstanced(m_indexCount, 1, 0, 0, 0);
+    m_commandList->DrawIndexedInstanced(m_indexCountBall, 1, 0, 0, 0);
 
     // draw second pyramid
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
-    m_commandList->DrawIndexedInstanced(m_indexCount, 1, 0, 0, 0);
+    m_commandList->DrawIndexedInstanced(m_indexCountBall, 1, 0, 0, 0);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -836,6 +838,116 @@ void VoyagerEngine::WaitForPreviousFrame()
         ThrowIfFailed(m_fence[m_frameBufferIndex]->SetEventOnCompletion(m_fenceValue[m_frameBufferIndex], m_fenceEvent));
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
+}
+
+void VoyagerEngine::CreateSphere()
+{
+    // make buffers
+    std::vector<Vertex> triangleVertices;
+    std::vector<DWORD> triangleIndices;
+    GenerateSphereVertices(triangleVertices, triangleIndices);
+    m_indexCountBall = triangleIndices.size();
+
+    UINT vertexBufferSize = triangleVertices.size() * sizeof(Vertex);
+    ComPtr<ID3D12Resource> vertexUploadBuffer;
+    AllocateBuffer(vertexUploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+    AllocateBuffer(m_vertexBufferBall, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
+
+    D3D12_SUBRESOURCE_DATA vertexData = {};
+    vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices.data());
+    vertexData.RowPitch = vertexBufferSize;
+    vertexData.SlicePitch = vertexBufferSize;
+
+    // We don't close the commandList and wait for it to finish as we have more commands to upload.
+    FillBuffer(m_vertexBufferBall, vertexData, vertexUploadBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false);
+
+    // Initialize the vertex buffer view.
+    m_vertexBufferViewBall.BufferLocation = m_vertexBufferBall->GetGPUVirtualAddress();
+    m_vertexBufferViewBall.StrideInBytes = sizeof(Vertex);
+    m_vertexBufferViewBall.SizeInBytes = vertexBufferSize;
+
+    UINT indexBufferSize = triangleIndices.size() * sizeof(DWORD);
+    ComPtr<ID3D12Resource> indexUploadBuffer;
+    AllocateBuffer(indexUploadBuffer, indexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+    AllocateBuffer(m_indexBufferBall, indexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
+
+    D3D12_SUBRESOURCE_DATA indexData = {};
+    indexData.pData = reinterpret_cast<BYTE*>(triangleIndices.data());
+    indexData.RowPitch = indexBufferSize;
+    indexData.SlicePitch = indexBufferSize;
+
+    FillBuffer(m_indexBufferBall, indexData, indexUploadBuffer, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+
+    // Initialize the index buffer view.
+    m_indexBufferViewBall.BufferLocation = m_indexBufferBall->GetGPUVirtualAddress();
+    m_indexBufferViewBall.Format = DXGI_FORMAT_R32_UINT;
+    m_indexBufferViewBall.SizeInBytes = indexBufferSize;
+
+    ThrowIfFailed(m_commandAllocator[m_frameBufferIndex]->Reset());
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));
+}
+
+void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
+{
+    Vertex vert;
+    vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
+    vert.position.x = -1; // lower left back    0
+    vert.position.y = -1;
+    vert.position.z = 1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = 1; // lower right back    1
+    vert.position.y = -1;
+    vert.position.z = 1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = 1; // lower right front   2
+    vert.position.y = -1;
+    vert.position.z = -1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = -1; // lower left front   3
+    vert.position.y = -1;
+    vert.position.z = -1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = -1; // upper left back    4
+    vert.position.y = 1;
+    vert.position.z = 1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = 1; // upper right back    5
+    vert.position.y = 1;
+    vert.position.z = 1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = 1; // upper right front   6
+    vert.position.y = 1;
+    vert.position.z = -1;
+    triangleVertices.push_back(vert);
+
+    vert.position.x = -1; // upper left front   7
+    vert.position.y = 1;
+    vert.position.z = -1;
+    triangleVertices.push_back(vert);
+
+    // Indexes
+    triangleIndices = std::vector<DWORD>{
+        0, 1, 2,
+        2, 3, 0, // bottom
+        4, 5, 6,
+        6, 7, 4, // top
+        6, 5, 1,
+        1, 2, 6, // right
+        4, 7, 3,
+        3, 0, 4, // left
+        7, 6, 2,
+        2, 3, 7, // front
+        4, 0, 1,
+        1, 5, 4  // back
+        };
+
+    return;
 }
 
 void VoyagerEngine::OnEarlyUpdate()

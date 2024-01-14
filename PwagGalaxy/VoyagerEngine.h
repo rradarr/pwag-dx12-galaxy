@@ -72,6 +72,13 @@ private:
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
     ComPtr<ID3D12Resource> m_textureBuffer;
 
+    //Ball
+    ComPtr<ID3D12Resource> m_vertexBufferBall;
+    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferViewBall; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
+    ComPtr<ID3D12Resource> m_indexBufferBall;
+    UINT m_indexCountBall;
+    D3D12_INDEX_BUFFER_VIEW m_indexBufferViewBall;
+
     // Constant Descriptor Table resources.
     //ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
     ComPtr<ID3D12Resource> m_constantDescriptorTableBuffers[mc_frameBufferCount];
@@ -107,6 +114,9 @@ private:
     void LoadScene();
     void PopulateCommandList();
     void WaitForPreviousFrame();
+
+    void CreateSphere();
+    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices);
 
     void OnEarlyUpdate();
 
