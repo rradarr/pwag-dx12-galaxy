@@ -2,6 +2,7 @@
 
 #include "Engine.h"
 #include "Camera.h"
+#include "Mesh.h"
 
 
 using Microsoft::WRL::ComPtr;
@@ -22,13 +23,6 @@ public:
 private:
     static const UINT mc_frameBufferCount = 3;
 
-    struct Vertex
-    {
-        DirectX::XMFLOAT3 position;
-        DirectX::XMFLOAT4 color;
-        DirectX::XMFLOAT2 uvCoordinates;
-    };
-
     // This is the structure of the color constant buffer (used in the root desriptor table).
     struct ColorConstantBuffer {
         DirectX::XMFLOAT4 colorMultiplier;
@@ -45,7 +39,6 @@ private:
     // Pipeline objects.
     CD3DX12_VIEWPORT m_viewport; // Area that the view-space (rasterizer outputt, between 0,1) will be streched to (and make up the screen-space).
     CD3DX12_RECT m_scissorRect; // Area in cscreen-space that will be drawn.
-    //ComPtr<ID3D12Device> m_device;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Resource> m_renderTargets[mc_frameBufferCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocator[mc_frameBufferCount];
@@ -65,19 +58,10 @@ private:
     UINT m_shaderAccessDescriptorSize;
 
     // App resources.
-    ComPtr<ID3D12Resource> m_vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
-    ComPtr<ID3D12Resource> m_indexBuffer;
-    UINT m_indexCount;
-    D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
-    ComPtr<ID3D12Resource> m_textureBuffer;
+    Mesh suzanneMesh;
+    Mesh ballMesh;
 
-    //Ball
-    ComPtr<ID3D12Resource> m_vertexBufferBall;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferViewBall; // Contains a pointer to the vertex buffer, size of buffer and size of each element.
-    ComPtr<ID3D12Resource> m_indexBufferBall;
-    UINT m_indexCountBall;
-    D3D12_INDEX_BUFFER_VIEW m_indexBufferViewBall;
+    ComPtr<ID3D12Resource> m_textureBuffer;
 
     // Constant Descriptor Table resources.
     //ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
@@ -110,7 +94,6 @@ private:
 
     void LoadPipeline();
     void LoadAssets();
-    void LoadModels(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices);
     void LoadScene();
     void PopulateCommandList();
     void WaitForPreviousFrame();
@@ -119,25 +102,5 @@ private:
     void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices);
 
     void OnEarlyUpdate();
-
-    void AllocateBuffer(
-        ComPtr<ID3D12Resource>& bufferResource,
-        UINT bufferSize,
-        D3D12_RESOURCE_STATES bufferState,
-        D3D12_HEAP_TYPE heapType);
-
-    void AllocateBuffer(
-        ComPtr<ID3D12Resource>& bufferResource,
-        CD3DX12_RESOURCE_DESC* resourceDescriptor,
-        D3D12_RESOURCE_STATES bufferState,
-        D3D12_HEAP_TYPE heapType,
-        D3D12_CLEAR_VALUE* optimizedClearValue = nullptr);
-
-    void FillBuffer(
-        ComPtr<ID3D12Resource>&  bufferResource,
-        D3D12_SUBRESOURCE_DATA data,
-        ComPtr<ID3D12Resource>&  uploadBufferResource,
-        D3D12_RESOURCE_STATES finalBufferState,
-        bool waitForGPU = true);
 };
 

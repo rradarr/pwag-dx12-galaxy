@@ -6,6 +6,7 @@
 #include "WindowsApplication.h"
 #include "Timer.h"
 #include "DXContext.h"
+#include "BufferMemoryManager.h"
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -176,35 +177,6 @@ void VoyagerEngine::OnKeyUp(UINT8 keyCode)
 
 void VoyagerEngine::LoadPipeline()
 {
-//    UINT dxgiFactoryFlags = 0;
-//
-//#ifdef _DEBUG
-//    // Enable D3D12 debug layer
-//    ComPtr<ID3D12Debug> debugController;
-//    ComPtr<ID3D12Debug1> debugController2;
-//    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-//    {
-//        debugController->EnableDebugLayer();
-//        debugController->QueryInterface(IID_PPV_ARGS(&debugController2));
-//        debugController2->SetEnableGPUBasedValidation(true);
-//
-//        // Enable additional debug layers.
-//        dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-//    }
-//#endif
-//
-//    ComPtr<IDXGIFactory4> factory;
-//    ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
-//
-//    ComPtr<IDXGIAdapter1> hardwareAdapter; // Adapters represent the hardware of each graphics card (including integrated graphics)
-//    GetHardwareAdapter(factory.Get(), &hardwareAdapter);
-//
-//    ThrowIfFailed(D3D12CreateDevice( // The device is the logical GPU representation and interface used in DX
-//        hardwareAdapter.Get(),
-//        D3D_FEATURE_LEVEL_11_0,
-//        IID_PPV_ARGS(&m_device)
-//    ));
-
     // Describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -437,7 +409,7 @@ void VoyagerEngine::LoadAssets()
 
     // Command lists are created in the recording state, but there is nothing
     // to record yet. The main loop expects it to be closed, so close it now.
-    //ThrowIfFailed(m_commandList->Close());
+    ThrowIfFailed(m_commandList->Close());
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -475,12 +447,14 @@ void VoyagerEngine::LoadAssets()
         // efficient to copy to a default heap where it stays on the gpu. In this case, our constant buffer
         // will be modified and uploaded at least once per frame, so we only use an upload heap.
 
+        BufferMemoryManager buffMng;
+
         // Create the resources as commited resources, and pointers to cbv for each frame
         for (int i = 0; i < mc_frameBufferCount; ++i)
         {
             // Size of the resource heap must be a multiple of 64KB for single-textures and constant buffers
             // Will be data that is read from so we keep it in the generic read state.
-            AllocateBuffer(m_constantDescriptorTableBuffers[i], 1042 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            buffMng.AllocateBuffer(m_constantDescriptorTableBuffers[i], 1042 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
             m_constantDescriptorTableBuffers[i]->SetName(L"Constant Buffer Table Buffer Upload Resource Heap");
 
             m_cbvPerFrameSize = (sizeof(ColorConstantBuffer) + 255) & ~255;
@@ -522,11 +496,13 @@ void VoyagerEngine::LoadAssets()
         // resource, and each resource must be at least 64KB (65536 bits)
         // Create our Constant Buffer descriptor heap
 
+        BufferMemoryManager buffMng;
+
         for (int i = 0; i < mc_frameBufferCount; ++i)
         {
             // create resource for cube 1
             // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
-            AllocateBuffer(m_constantRootDescriptorBuffers[i], 1024 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            buffMng.AllocateBuffer(m_constantRootDescriptorBuffers[i], 1024 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
             m_constantRootDescriptorBuffers[i]->SetName(L"Root Constant Buffer Upload Resource Heap");
 
             ZeroMemory(&m_wvpPerObject, sizeof(m_wvpPerObject));
@@ -545,77 +521,16 @@ void VoyagerEngine::LoadAssets()
     // Create the vertex and index buffers.
     {
         CreateSphere();
-        // Create the vertex buffer
-        {
-            // Define the geometry vertices.
-            //Vertex triangleVertices[] =
-            //{
-            //    { { -0.25f, -0.25f, -0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 0.f} }, // 0 BASE BACK LEFT
-            //    { { 0.25f, -0.25f, -0.25f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {1.f, 0.f} },  // 1 BASE BACK RIGHT
-            //    { { 0.25f, -0.25f, 0.25f }, { 0.0f, 0.0f, 1.0f, 1.0f }, {1.f, 1.f} },   // 2 BASE FRONT RIGHT
-            //    { { -0.25f, -0.25f, 0.25f }, { 1.0f, 0.0f, 0.0f, 1.0f }, {0.f, 1.f} },   // 3 BASE FRONT LEFT
-            //    { { 0.f, 0.25f, 0.f }, { 0.0f, 1.0f, 0.0f, 1.0f }, {0.5f, 0.5f} }         // 4 TOP
-            //};
-
-            std::vector<Vertex> triangleVertices;
-            std::vector<DWORD> triangleIndices;
-            LoadModels(triangleVertices, triangleIndices);
-            m_indexCount = triangleIndices.size();
-
-            UINT vertexBufferSize = triangleVertices.size() * sizeof(Vertex);
-            ComPtr<ID3D12Resource> vertexUploadBuffer;
-            AllocateBuffer(vertexUploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-            AllocateBuffer(m_vertexBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-
-            D3D12_SUBRESOURCE_DATA vertexData = {};
-            vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices.data());
-            vertexData.RowPitch = vertexBufferSize;
-            vertexData.SlicePitch = vertexBufferSize;
-
-            // We don't close the commandList and wait for it to finish as we have more commands to upload.
-            FillBuffer(m_vertexBuffer, vertexData, vertexUploadBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false);
-
-            // Initialize the vertex buffer view.
-            m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-            m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-            m_vertexBufferView.SizeInBytes = vertexBufferSize;
-
-        // Create the index buffer.
-            // Define the geometry indices.
-            //DWORD triangleIndices[] =
-            //{
-            //    0, 3, 1,    // BASE LEFT
-            //    1, 3, 2,    // BASE RIGHT
-            //    4, 0, 1,    // WALL BACK
-            //    4, 3, 0,    // WALL LEFT
-            //    4, 1, 2,    // WALL RIGHT
-            //    4, 2, 3     // WALL FRONT
-            //};
-            UINT indexBufferSize = triangleIndices.size() * sizeof(DWORD);
-            ComPtr<ID3D12Resource> indexUploadBuffer;
-            AllocateBuffer(indexUploadBuffer, indexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-            AllocateBuffer(m_indexBuffer, indexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-
-            D3D12_SUBRESOURCE_DATA indexData = {};
-            indexData.pData = reinterpret_cast<BYTE*>(triangleIndices.data());
-            indexData.RowPitch = indexBufferSize;
-            indexData.SlicePitch = indexBufferSize;
-
-            FillBuffer(m_indexBuffer, indexData, indexUploadBuffer, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-
-            // Initialize the index buffer view.
-            m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
-            m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
-            m_indexBufferView.SizeInBytes = indexBufferSize;
-        }
+        suzanneMesh.CreateFromFile("suzanne.obj");
 
         // Load the texture
         {
             // We will need a command list for the texture upload, so we need to reset it
             // (after using it and waiting on it during index and vertex buffer uploads).
-            ThrowIfFailed(m_commandAllocator[m_frameBufferIndex]->Reset());
-            ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));
+            /*ThrowIfFailed(m_commandAllocator[m_frameBufferIndex]->Reset());
+            ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));*/
 
+            BufferMemoryManager buffMng;
             TextureLoader textureLoader;
             D3D12_RESOURCE_DESC textureDesc;
             int imageBytesPerRow;
@@ -626,13 +541,13 @@ void VoyagerEngine::LoadAssets()
             UINT64 textureUploadBufferSize = 0;
             DXContext::getDevice().Get()->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
             ComPtr<ID3D12Resource> textureUploadBuffer;
-            AllocateBuffer(m_textureBuffer, &desc, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-            AllocateBuffer(textureUploadBuffer, textureUploadBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            buffMng.AllocateBuffer(m_textureBuffer, &desc, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
+            buffMng.AllocateBuffer(textureUploadBuffer, textureUploadBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
             D3D12_SUBRESOURCE_DATA textureData = {};
             textureData.pData = &imageData[0];
             textureData.RowPitch = imageBytesPerRow;
             textureData.SlicePitch = imageBytesPerRow * textureDesc.Height;
-            FillBuffer(m_textureBuffer, textureData, textureUploadBuffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            buffMng.FillBuffer(m_textureBuffer, textureData, textureUploadBuffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             m_textureBuffer->SetName(L"Texture buffer resource");
 
             // Create the SRV Descriptor Heap
@@ -655,6 +570,8 @@ void VoyagerEngine::LoadAssets()
 
         // Create the depth/stencil heap and buffer.
         {
+            BufferMemoryManager buffMng;
+
             D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
             dsvHeapDesc.NumDescriptors = 1;
             dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -667,7 +584,7 @@ void VoyagerEngine::LoadAssets()
             depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
             CD3DX12_RESOURCE_DESC resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, windowWidth, windowHeight, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-            AllocateBuffer(m_depthStencilBuffer, &resourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT, &depthOptimizedClearValue);
+            buffMng.AllocateBuffer(m_depthStencilBuffer, &resourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT, &depthOptimizedClearValue);
             m_dsHeap->SetName(L"Depth/Stencil Resource Heap");
 
             D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
@@ -680,69 +597,6 @@ void VoyagerEngine::LoadAssets()
     }
 
     std::cout << "Assets loaded." << std::endl;
-}
-
-void VoyagerEngine::LoadModels(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
-{
-    std::wstring inputFileWide = { GetAssetFullPath(L"suzanne.obj").c_str()};
-    std::string inputFile = { inputFileWide.begin(), inputFileWide.end() };
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-
-    std::string warn;
-    std::string err;
-
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputFile.c_str());
-
-    if (!warn.empty()) {
-        std::cout << warn << std::endl;
-    }
-
-    if (!err.empty()) {
-        std::cerr << err << std::endl;
-    }
-
-    if (!ret) {
-        std::cout << "Model did not load!" << std::endl;
-    }
-
-    // Vertices are stored in a vector as x, y, z floats, so vector size is divided by 3.
-    triangleVertices.resize(attrib.vertices.size() / 3);
-
-    // Each shape can be thought of as a separate mesh in the file, so a sum of index
-    // counts for all shapes is needed.
-    unsigned int numOfIndices = 0;
-    for (int shapeID = 0; shapeID < shapes.size(); shapeID++)
-    {
-        numOfIndices += shapes[shapeID].mesh.indices.size();
-    }
-    triangleIndices.resize(numOfIndices);
-
-    // Iterate over shapes in the file.
-    for (int shapeID = 0; shapeID < shapes.size(); shapeID++)
-    {
-        // Iterate over indices in the shape. They index into attrib.vertices as if
-        // each xyz triple was one element (so max index will be attrib.vertices.size / 3)
-        int shapeIndexNumber = shapes[shapeID].mesh.indices.size();
-        for (int vertexID = 0; vertexID < shapeIndexNumber; vertexID++) {
-            triangleIndices[shapeID * shapeIndexNumber + vertexID] = static_cast<DWORD>(shapes[shapeID].mesh.indices[vertexID].vertex_index);
-
-            // Store verte data in put structure.
-            float vertexX, vertexY, vertexZ, vertexU, vertexV;
-            vertexX = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index];
-            vertexY = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index + 1];
-            vertexZ = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index + 2];
-            vertexU = attrib.texcoords[2 * shapes[shapeID].mesh.indices[vertexID].texcoord_index];
-            vertexV = attrib.texcoords[2 * shapes[shapeID].mesh.indices[vertexID].texcoord_index + 1];
-            Vertex vertex = {
-                {vertexX, vertexY, vertexZ},
-                {1.f, 1.f, 1.f, 1.f},
-                {vertexU, vertexV}
-            };
-            triangleVertices[triangleIndices[shapeID * 3 + vertexID]] = vertex;
-        }
-    }
 }
 
 void VoyagerEngine::LoadScene()
@@ -792,8 +646,6 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferViewBall);
-    m_commandList->IASetIndexBuffer(&m_indexBufferViewBall);
 
     // set constant buffer descriptor table heap and srv descriptor table heap
     ID3D12DescriptorHeap* descriptorHeaps[] = { m_shaderAccessHeap.Get() };
@@ -802,19 +654,19 @@ void VoyagerEngine::PopulateCommandList()
     CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
     m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
 
-    //ID3D12DescriptorHeap* srvDescriptorHeaps[] = { m_SRVHeap.Get() };
-    //m_commandList->SetDescriptorHeaps(_countof(srvDescriptorHeaps), srvDescriptorHeaps);
     // set the root descriptor table 2 to the srv
     descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
     m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(3, m_shaderAccessDescriptorSize));
 
-    // draw first pyramid
+    // draw ball
+    ballMesh.InsertBufferBind(m_commandList);
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
-    m_commandList->DrawIndexedInstanced(m_indexCountBall, 1, 0, 0, 0);
+    ballMesh.InsertDrawIndexed(m_commandList);
 
-    // draw second pyramid
+    // draw suzanne
+    suzanneMesh.InsertBufferBind(m_commandList);
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
-    m_commandList->DrawIndexedInstanced(m_indexCountBall, 1, 0, 0, 0);
+    suzanneMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -842,49 +694,10 @@ void VoyagerEngine::WaitForPreviousFrame()
 
 void VoyagerEngine::CreateSphere()
 {
-    // make buffers
     std::vector<Vertex> triangleVertices;
     std::vector<DWORD> triangleIndices;
     GenerateSphereVertices(triangleVertices, triangleIndices);
-    m_indexCountBall = triangleIndices.size();
-
-    UINT vertexBufferSize = triangleVertices.size() * sizeof(Vertex);
-    ComPtr<ID3D12Resource> vertexUploadBuffer;
-    AllocateBuffer(vertexUploadBuffer, vertexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-    AllocateBuffer(m_vertexBufferBall, vertexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-
-    D3D12_SUBRESOURCE_DATA vertexData = {};
-    vertexData.pData = reinterpret_cast<BYTE*>(triangleVertices.data());
-    vertexData.RowPitch = vertexBufferSize;
-    vertexData.SlicePitch = vertexBufferSize;
-
-    // We don't close the commandList and wait for it to finish as we have more commands to upload.
-    FillBuffer(m_vertexBufferBall, vertexData, vertexUploadBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false);
-
-    // Initialize the vertex buffer view.
-    m_vertexBufferViewBall.BufferLocation = m_vertexBufferBall->GetGPUVirtualAddress();
-    m_vertexBufferViewBall.StrideInBytes = sizeof(Vertex);
-    m_vertexBufferViewBall.SizeInBytes = vertexBufferSize;
-
-    UINT indexBufferSize = triangleIndices.size() * sizeof(DWORD);
-    ComPtr<ID3D12Resource> indexUploadBuffer;
-    AllocateBuffer(indexUploadBuffer, indexBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-    AllocateBuffer(m_indexBufferBall, indexBufferSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-
-    D3D12_SUBRESOURCE_DATA indexData = {};
-    indexData.pData = reinterpret_cast<BYTE*>(triangleIndices.data());
-    indexData.RowPitch = indexBufferSize;
-    indexData.SlicePitch = indexBufferSize;
-
-    FillBuffer(m_indexBufferBall, indexData, indexUploadBuffer, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-
-    // Initialize the index buffer view.
-    m_indexBufferViewBall.BufferLocation = m_indexBufferBall->GetGPUVirtualAddress();
-    m_indexBufferViewBall.Format = DXGI_FORMAT_R32_UINT;
-    m_indexBufferViewBall.SizeInBytes = indexBufferSize;
-
-    ThrowIfFailed(m_commandAllocator[m_frameBufferIndex]->Reset());
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));
+    ballMesh = Mesh(triangleVertices, triangleIndices);
 }
 
 void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
@@ -965,50 +778,5 @@ void VoyagerEngine::OnEarlyUpdate()
     {
         timeTillFpsDisplayUpdate = 0.0;
         std::cout << timer->GetFps() << "\r";
-    }
-}
-
-void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, UINT bufferSize, D3D12_RESOURCE_STATES bufferState, D3D12_HEAP_TYPE heapType)
-{
-    CD3DX12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES(heapType);
-    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
-    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommittedResource(
-        &heapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &desc,
-        bufferState,
-        nullptr,
-        IID_PPV_ARGS(&bufferResource)));
-}
-
-void VoyagerEngine::AllocateBuffer(ComPtr<ID3D12Resource>& bufferResource, CD3DX12_RESOURCE_DESC* resourceDescriptor, D3D12_RESOURCE_STATES bufferState, D3D12_HEAP_TYPE heapType, D3D12_CLEAR_VALUE* optimizedClearValue)
-{
-    CD3DX12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES(heapType);
-    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommittedResource(
-        &heapProps,
-        D3D12_HEAP_FLAG_NONE,
-        resourceDescriptor,
-        bufferState,
-        optimizedClearValue,
-        IID_PPV_ARGS(&bufferResource)));
-}
-
-/* Copy data to Default buffer with the use of an Upload buffer. Optionally will submit a command list to the gpu and wait for it to finish. */
-void VoyagerEngine::FillBuffer(ComPtr<ID3D12Resource>& bufferResource, D3D12_SUBRESOURCE_DATA data, ComPtr<ID3D12Resource>& uploadBufferResource, D3D12_RESOURCE_STATES finalBufferState, bool waitForGPU)
-{
-    // This starts a command list and records a copy command. (The list is still recording and will need to be closed and executed).
-    UpdateSubresources(m_commandList.Get(), bufferResource.Get(), uploadBufferResource.Get(), 0, 0, 1, &data);
-    // Set a resource barrier to transition the buffer from OCPY_DEST to a VERTEX_AND_CONSTANT_BUFFER. (this is also a command).
-    CD3DX12_RESOURCE_BARRIER transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(bufferResource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalBufferState);
-    m_commandList->ResourceBarrier(1, &transitionBarrier);
-    if (waitForGPU)
-    {
-        // Execute the command list.
-        m_commandList->Close();
-        ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-        m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
-        m_fenceValue[m_frameBufferIndex]++;
-        m_commandQueue->Signal(m_fence[m_frameBufferIndex].Get(), m_fenceValue[m_frameBufferIndex]);
-        WaitForPreviousFrame();
     }
 }

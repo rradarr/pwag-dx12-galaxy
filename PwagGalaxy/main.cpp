@@ -41,9 +41,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - detect a specific button press
 //      - switch the PSOs with the button
 // - add abstractions:
-//      - scneObject
+//      - scneObject:
+//          V mesh
+//          - material
+//          - ? (properties such as translation and stuff?)
 //      - camera
-//      - buffer
+//      V buffer
 //      - command list (with internal status tracking)
 //      - resources (add resources, based on them allocate heap of good size and create resource views with good offsets. store offsets)
 // - replace ComPtr with smart pointers
