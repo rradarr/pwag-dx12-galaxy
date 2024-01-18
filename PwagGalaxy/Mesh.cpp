@@ -164,4 +164,6 @@ bool Mesh::LoadModelFromFile(const std::string fileName, std::vector<Vertex>& me
             meshVertices[meshIndices[shapeID * 3 + vertexID]] = vertex;
         }
     }
+
+    return true;
 }

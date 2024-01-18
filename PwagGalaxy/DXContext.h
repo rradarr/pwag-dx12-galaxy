@@ -4,7 +4,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-static class DXContext
+class DXContext
 {
 public:
     static ComPtr<ID3D12Device> getDevice();

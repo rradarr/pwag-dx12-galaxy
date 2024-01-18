@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-static class EngineHelpers
+class EngineHelpers
 {
 public:
     static std::wstring GetAssetFullPath(LPCWSTR assetName);
