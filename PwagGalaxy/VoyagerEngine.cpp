@@ -7,6 +7,7 @@
 #include "Timer.h"
 #include "DXContext.h"
 #include "BufferMemoryManager.h"
+#include "EngineHelpers.h"
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -346,13 +347,13 @@ void VoyagerEngine::LoadAssets()
         UINT compileFlags = 0;
 #endif
         // When debugging, compiling at runtime provides descriptive errors. At release, precompiled shader bytecode should be loaded.
-        if (FAILED(D3DCompileFromFile(GetAssetFullPath(L"VertexShader.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_1", compileFlags, 0, &vertexShader, vertexShaderErrors.GetAddressOf())))
+        if (FAILED(D3DCompileFromFile(EngineHelpers::GetAssetFullPath(L"VertexShader.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_1", compileFlags, 0, &vertexShader, vertexShaderErrors.GetAddressOf())))
         {
             OutputDebugStringA((char *)vertexShaderErrors->GetBufferPointer());
             shaderCompilationFailed = true;
         }
 
-        if (FAILED(D3DCompileFromFile(GetAssetFullPath(L"PixelShader.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_1", compileFlags, 0, &pixelShader, pixelShaderErrors.GetAddressOf())))
+        if (FAILED(D3DCompileFromFile(EngineHelpers::GetAssetFullPath(L"PixelShader.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_1", compileFlags, 0, &pixelShader, pixelShaderErrors.GetAddressOf())))
         {
             OutputDebugStringA((char*)pixelShaderErrors->GetBufferPointer());
             shaderCompilationFailed = true;
@@ -525,47 +526,9 @@ void VoyagerEngine::LoadAssets()
 
         // Load the texture
         {
-            // We will need a command list for the texture upload, so we need to reset it
-            // (after using it and waiting on it during index and vertex buffer uploads).
-            /*ThrowIfFailed(m_commandAllocator[m_frameBufferIndex]->Reset());
-            ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));*/
-
-            BufferMemoryManager buffMng;
-            TextureLoader textureLoader;
-            D3D12_RESOURCE_DESC textureDesc;
-            int imageBytesPerRow;
-            BYTE* imageData;
-            int imageSize = textureLoader.LoadTextureFromFile(&imageData, textureDesc, GetAssetFullPath(L"texture.png").c_str(), imageBytesPerRow);
-
-            CD3DX12_RESOURCE_DESC desc(textureDesc);
-            UINT64 textureUploadBufferSize = 0;
-            DXContext::getDevice().Get()->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
-            ComPtr<ID3D12Resource> textureUploadBuffer;
-            buffMng.AllocateBuffer(m_textureBuffer, &desc, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-            buffMng.AllocateBuffer(textureUploadBuffer, textureUploadBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-            D3D12_SUBRESOURCE_DATA textureData = {};
-            textureData.pData = &imageData[0];
-            textureData.RowPitch = imageBytesPerRow;
-            textureData.SlicePitch = imageBytesPerRow * textureDesc.Height;
-            buffMng.FillBuffer(m_textureBuffer, textureData, textureUploadBuffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            m_textureBuffer->SetName(L"Texture buffer resource");
-
-            // Create the SRV Descriptor Heap
-            /*D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-            heapDesc.NumDescriptors = 1;
-            heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            ThrowIfFailed(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_SRVHeap)));
-            m_SRVHeap->SetName(L"SRV Heap");*/
-
-            // Create the SRV view/descriptor
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srvDesc.Format = textureDesc.Format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srvDesc.Texture2D.MipLevels = 1;
-            DXContext::getDevice().Get()->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, m_shaderAccessHeapHeadHandle);
-            m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
+            sampleTexture.CreateFromFile("texture.png"); // Create the texture from file.
+            sampleTexture.CreateTextureView(m_shaderAccessHeapHeadHandle); // Add the texture resource view to the heap.
+            m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize); // Update the heap HEAD pointer/handle.
         }
 
         // Create the depth/stencil heap and buffer.

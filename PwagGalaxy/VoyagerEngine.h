@@ -3,6 +3,7 @@
 #include "Engine.h"
 #include "Camera.h"
 #include "Mesh.h"
+#include "Texture.h"
 
 
 using Microsoft::WRL::ComPtr;
@@ -61,7 +62,7 @@ private:
     Mesh suzanneMesh;
     Mesh ballMesh;
 
-    ComPtr<ID3D12Resource> m_textureBuffer;
+    Texture sampleTexture;
 
     // Constant Descriptor Table resources.
     //ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
