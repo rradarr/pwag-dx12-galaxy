@@ -54,7 +54,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 /*
 Plan for resources:
-- AssetBootloader, loads, reads and parses the JSON description of the assets. Passes that to the ResourceManager.
 - ResourceManager, loads the resources and creates them using abstractions Mesh, Texture, Material. Stores them in
 arrays(?). Separate resources are coupled together in SceneObjects, that hold references to the resources.
 - Material, creates and manages DX pipeline and root signature based on used resources and shaders. Always includes

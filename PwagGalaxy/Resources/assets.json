@@ -8,8 +8,37 @@
     "materials": [
         {
             "name": "default_textured",
-            "texture": "sample_texture",
-            "props": false
+            "vertex_shader": "VertexShader.hlsl",
+            "pixel_shader": "PixelShader.hlsl",
+            "texture_slots": [1]
+        },
+        {
+            "name": "default_untextured",
+            "vertex_shader": "VertexShader_no_tex.hlsl",
+            "pixel_shader": "PixelShader_no_tex.hlsl"
+        }
+    ],
+    "meshes": [
+        {
+            "name": "suzanne",
+            "path": "suzanne.obj"
+        },
+        {
+            "name": "default_cube",
+            "primitive": "cube"
+        }
+    ],
+    "objects": [
+        {
+            "name": "big_cube",
+            "material": "default_untextured",
+            "mesh": "default_cube"
+        },
+        {
+            "name": "small_suzanne",
+            "textures": ["sample_texture"],
+            "material": "default_textured",
+            "mesh": "suzanne"
         }
     ]
 }

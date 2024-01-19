@@ -29,6 +29,5 @@ bool AssetConfigReader::ReadJson(const std::string fileName)
         std::cout << v["name"].GetString() << std::endl;
     }
 
-
     return true;
 }
