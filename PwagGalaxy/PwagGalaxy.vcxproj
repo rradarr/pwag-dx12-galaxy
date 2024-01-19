@@ -72,19 +72,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
-    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\rapidjson;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
-    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\rapidjson;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
-    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\rapidjson;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22000.0\um\x64;$(LibraryPath)</LibraryPath>
-    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;$(IncludePath)</IncludePath>
+    <IncludePath>E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\dx_includes;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.22000.0\shared;E:\programistyczne\magister_pwag\pwag-dx12-galaxy\PwagGalaxy\rapidjson;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
