@@ -17,4 +17,3 @@ private:
     ComPtr<ID3D12Resource> textureBuffer;
     D3D12_RESOURCE_DESC textureDesc;
 };
-

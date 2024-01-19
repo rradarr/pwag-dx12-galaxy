@@ -8,6 +8,7 @@
 #include "DXContext.h"
 #include "BufferMemoryManager.h"
 #include "EngineHelpers.h"
+#include "AssetConfigReader.h"
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -578,6 +579,17 @@ void VoyagerEngine::LoadScene()
     tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
     DirectX::XMStoreFloat4x4(&pyramid2WorldMat, tmpMat);
     DirectX::XMStoreFloat4x4(&pyramid2RotMat, DirectX::XMMatrixIdentity());
+
+    AssetConfigReader reader;
+    bool result = reader.ReadJson("assets.json");
+    if (result)
+    {
+        std::cout << "JSON 'assets.json' read successfully." << std::endl;
+    }
+    else
+    {
+        std::cout << "Could not read JSON 'assets.json'." << std::endl;
+    }
 }
 
 void VoyagerEngine::PopulateCommandList()

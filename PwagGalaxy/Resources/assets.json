@@ -1,0 +1,15 @@
+{
+    "textures": [
+        {
+            "name": "sample_texture",
+            "path": "texture.png"
+        }
+    ],
+    "materials": [
+        {
+            "name": "default_textured",
+            "texture": "sample_texture",
+            "props": false
+        }
+    ]
+}

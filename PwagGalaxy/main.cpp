@@ -50,3 +50,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 //      - command list (with internal status tracking)
 //      - resources (add resources, based on them allocate heap of good size and create resource views with good offsets. store offsets)
 // - replace ComPtr with smart pointers
+
+
+/*
+Plan for resources:
+- AssetBootloader, loads, reads and parses the JSON description of the assets. Passes that to the ResourceManager.
+- ResourceManager, loads the resources and creates them using abstractions Mesh, Texture, Material. Stores them in
+arrays(?). Separate resources are coupled together in SceneObjects, that hold references to the resources.
+- Material, creates and manages DX pipeline and root signature based on used resources and shaders. Always includes
+a constatnt buffer for wvp matrices. May include spots for textures and other constant buffers.
+*/
