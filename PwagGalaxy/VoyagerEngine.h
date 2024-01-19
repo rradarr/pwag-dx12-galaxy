@@ -4,7 +4,7 @@
 #include "Camera.h"
 #include "Mesh.h"
 #include "Texture.h"
-
+#include "DefaultTexturedMaterial.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -45,9 +45,7 @@ private:
     ComPtr<ID3D12CommandAllocator> m_commandAllocator[mc_frameBufferCount];
     ComPtr<ID3D12GraphicsCommandList> m_commandList; // As many as therads, so one. It can be reset immidiately after submitting.
     ComPtr<ID3D12CommandQueue> m_commandQueue;
-    ComPtr<ID3D12RootSignature> m_rootSignature; // Defines all data that will be used by the shaders (all reasource descriptors + constants).
     ComPtr<ID3D12DescriptorHeap> m_RTVHeap;
-    ComPtr<ID3D12PipelineState> m_pipelineState; // Our PSO. Will need more of them. Defines the state of the pipeline (duh).
     UINT m_rtvDescriptorSize;
 
     ComPtr<ID3D12Resource> m_depthStencilBuffer;
@@ -59,6 +57,9 @@ private:
     UINT m_shaderAccessDescriptorSize;
 
     // App resources.
+    DefaultTexturedMaterial defaultMaterial;
+    Material materialNoTex;
+
     Mesh suzanneMesh;
     Mesh ballMesh;
 

@@ -251,163 +251,14 @@ void VoyagerEngine::LoadPipeline()
 
 void VoyagerEngine::LoadAssets()
 {
-    // Create an empty root signature.
-    {
-        // create a descriptor range (descriptor table) and fill it out
-        // this is a range of descriptors inside a descriptor heap
-        D3D12_DESCRIPTOR_RANGE  descriptorTableVertexRanges[1]; // only one range right now
-        descriptorTableVertexRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // this is a range of constant buffer views (descriptors)
-        descriptorTableVertexRanges[0].NumDescriptors = 1; // we only have one constant buffer, so the range is only 1
-        descriptorTableVertexRanges[0].BaseShaderRegister = 0; // start index of the shader registers in the range
-        descriptorTableVertexRanges[0].RegisterSpace = 0; // space 0. can usually be zero
-        descriptorTableVertexRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // this appends the range to the end of the root signature descriptor tables
+    defaultMaterial.SetShaders("VertexShader.hlsl", "PixelShader.hlsl");
+    defaultMaterial.CreateMaterial();
 
-        // create a descriptor table for the vertex stage
-        D3D12_ROOT_DESCRIPTOR_TABLE descriptorTableVertex;
-        descriptorTableVertex.NumDescriptorRanges = _countof(descriptorTableVertexRanges);
-        descriptorTableVertex.pDescriptorRanges = &descriptorTableVertexRanges[0]; // the pointer to the beginning of our ranges array
-
-        // Create the descriptor range for the texture resource (it needs to be a separate root parameter as it's used by a different shader stage!)
-        D3D12_DESCRIPTOR_RANGE  descriptorTablePixelRanges[1];
-        descriptorTablePixelRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        descriptorTablePixelRanges[0].NumDescriptors = 1;
-        descriptorTablePixelRanges[0].BaseShaderRegister = 0; // t0 in shader
-        descriptorTablePixelRanges[0].RegisterSpace = 0;
-        descriptorTablePixelRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-        // create a descriptor table for the pixel stage
-        D3D12_ROOT_DESCRIPTOR_TABLE descriptorTablePixel;
-        descriptorTablePixel.NumDescriptorRanges = _countof(descriptorTablePixelRanges);
-        descriptorTablePixel.pDescriptorRanges = &descriptorTablePixelRanges[0]; // the pointer to the beginning of our ranges array
-
-        // Create the root descriptor (for wvp matrices)
-        D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
-        rootCBVDescriptor.ShaderRegister = 1; // b1 in shader
-        rootCBVDescriptor.RegisterSpace = 0;
-
-        // create a root parameter and fill it out
-        D3D12_ROOT_PARAMETER  rootParameters[3];
-        rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // this is a descriptor table
-        rootParameters[0].DescriptorTable = descriptorTableVertex; // this is our descriptor table for this root parameter
-        rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // vertex will access cbv
-
-        rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        rootParameters[1].Descriptor = rootCBVDescriptor;
-        rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-
-        rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // this is a descriptor table
-        rootParameters[2].DescriptorTable = descriptorTablePixel; // this is our descriptor table for this root parameter
-        rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // pixel will access srv (texture)
-
-        // Create the static sample description.
-        D3D12_STATIC_SAMPLER_DESC sampler = {};
-        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        sampler.MipLODBias = 0;
-        sampler.MaxAnisotropy = 0;
-        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-        sampler.MinLOD = 0.f;
-        sampler.MaxLOD = D3D12_FLOAT32_MAX;
-        sampler.ShaderRegister = 0; // s0 in shader
-        sampler.RegisterSpace = 0;
-        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-        CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        // Root parameters (first argument) can be root constants, root descriptors or descriptor tables.
-        rootSignatureDesc.Init(
-            _countof(rootParameters),
-            rootParameters,
-            1,
-            &sampler,
-            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // we can deny shader stages here for better performance
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
-
-        ComPtr<ID3DBlob> signature;
-        ComPtr<ID3DBlob> error;
-        ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-        ThrowIfFailed(DXContext::getDevice().Get()->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
-    }
-
-    // Create the pipeline state, which includes compiling and loading shaders.
-    {
-        ComPtr<ID3DBlob> vertexShader;
-        ComPtr<ID3DBlob> pixelShader;
-        ComPtr<ID3DBlob> vertexShaderErrors;
-        ComPtr<ID3DBlob> pixelShaderErrors;
-        bool shaderCompilationFailed = false;
-
-#if defined(_DEBUG)
-        // Enable better shader debugging with the graphics debugging tools.
-        UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-        UINT compileFlags = 0;
-#endif
-        // When debugging, compiling at runtime provides descriptive errors. At release, precompiled shader bytecode should be loaded.
-        if (FAILED(D3DCompileFromFile(EngineHelpers::GetAssetFullPath(L"VertexShader.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_1", compileFlags, 0, &vertexShader, vertexShaderErrors.GetAddressOf())))
-        {
-            OutputDebugStringA((char *)vertexShaderErrors->GetBufferPointer());
-            shaderCompilationFailed = true;
-        }
-
-        if (FAILED(D3DCompileFromFile(EngineHelpers::GetAssetFullPath(L"PixelShader.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_1", compileFlags, 0, &pixelShader, pixelShaderErrors.GetAddressOf())))
-        {
-            OutputDebugStringA((char*)pixelShaderErrors->GetBufferPointer());
-            shaderCompilationFailed = true;
-        }
-
-        if (shaderCompilationFailed)
-        {
-            throw "Shader compilation failed!";
-        }
-
-        // Define the vertex input layout.
-        D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
-        {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
-        };
-
-        // Prepare the depth/stencil descpriptor for the PSO creation
-        D3D12_DEPTH_STENCIL_DESC dtDesc = {};
-        dtDesc.DepthEnable = TRUE;
-        dtDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-        dtDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS; // More efficient than _LESS_EQUAL as less fragments pass the test.
-        dtDesc.StencilEnable = FALSE; // disable stencil test
-        dtDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
-        dtDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
-        const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
-            { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
-        dtDesc.FrontFace = defaultStencilOp; // both front and back facing polygons get the same treatment
-        dtDesc.BackFace = defaultStencilOp;
-
-        // Describe and create the graphics pipeline state object (PSO).
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-        psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-        psoDesc.pRootSignature = m_rootSignature.Get();
-        psoDesc.VS = { reinterpret_cast<UINT8*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
-        psoDesc.PS = { reinterpret_cast<UINT8*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
-        psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-        psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; // TODO: This changes between solid and wireframe.
-        psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-        psoDesc.DepthStencilState = dtDesc;
-        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-        psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        //psoDesc.RasterizerState.FrontCounterClockwise = true;
-        psoDesc.NumRenderTargets = 1;
-        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        psoDesc.SampleMask = UINT_MAX;
-        psoDesc.SampleDesc.Count = 1;
-        ThrowIfFailed(DXContext::getDevice().Get()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
-    }
+    materialNoTex.SetShaders("VertexShader_noTex.hlsl", "PixelShader_noTex.hlsl");
+    materialNoTex.CreateMaterial();
 
     // Create the command list.
-    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+    ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), nullptr, IID_PPV_ARGS(&m_commandList)));
 
     // Command lists are created in the recording state, but there is nothing
     // to record yet. The main loop expects it to be closed, so close it now.
@@ -600,7 +451,7 @@ void VoyagerEngine::PopulateCommandList()
     // However, when ExecuteCommandList() is called on a particular command
     // list, that command list can then be reset at any time and must be before
     // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), m_pipelineState.Get()));
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), defaultMaterial.GetPSO().Get()));
 
     // Indicate that the back buffer will be used as a render target.
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -612,7 +463,7 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Set necessary state.
-    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+    m_commandList->SetGraphicsRootSignature(defaultMaterial.GetRootSignature().Get());
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -633,15 +484,19 @@ void VoyagerEngine::PopulateCommandList()
     descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
     m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(3, m_shaderAccessDescriptorSize));
 
-    // draw ball
-    ballMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
-    ballMesh.InsertDrawIndexed(m_commandList);
-
     // draw suzanne
     suzanneMesh.InsertBufferBind(m_commandList);
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
     suzanneMesh.InsertDrawIndexed(m_commandList);
+
+    m_commandList->SetPipelineState(materialNoTex.GetPSO().Get());
+    m_commandList->SetGraphicsRootSignature(materialNoTex.GetRootSignature().Get());
+    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
+    // draw ball
+    ballMesh.InsertBufferBind(m_commandList);
+    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
+    ballMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
