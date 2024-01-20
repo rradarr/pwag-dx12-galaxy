@@ -63,7 +63,7 @@ void VoyagerEngine::OnUpdate()
     // Update object positions.
     // create rotation matrices
     DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
-    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.02f);
+    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.002f);
     DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
 
     // add rotation to cube1's rotation matrix and store it
@@ -92,7 +92,7 @@ void VoyagerEngine::OnUpdate()
     // now do cube2's world matrix
     // create rotation matrices for piramid2
     rotXMat = DirectX::XMMatrixRotationX(0.f);
-    rotYMat = DirectX::XMMatrixRotationY(0.01f);
+    rotYMat = DirectX::XMMatrixRotationY(0.0001f);
     rotZMat = DirectX::XMMatrixRotationZ(0.f);
 
     // add rotation to cube2's rotation matrix and store it
@@ -532,63 +532,81 @@ void VoyagerEngine::CreateSphere()
 
 void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
 {
+
+
+    int resolution = 32;
+
+
+
     Vertex vert;
     vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
-    vert.position.x = -1; // lower left back    0
-    vert.position.y = -1;
-    vert.position.z = 1;
-    triangleVertices.push_back(vert);
 
-    vert.position.x = 1; // lower right back    1
-    vert.position.y = -1;
-    vert.position.z = 1;
-    triangleVertices.push_back(vert);
 
-    vert.position.x = 1; // lower right front   2
-    vert.position.y = -1;
-    vert.position.z = -1;
-    triangleVertices.push_back(vert);
 
-    vert.position.x = -1; // lower left front   3
-    vert.position.y = -1;
-    vert.position.z = -1;
-    triangleVertices.push_back(vert);
 
-    vert.position.x = -1; // upper left back    4
-    vert.position.y = 1;
-    vert.position.z = 1;
-    triangleVertices.push_back(vert);
+    DirectX::XMVECTOR faces[] = {
+        DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
+        DirectX::XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f),
+        DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
+        DirectX::XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f),
+        DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
+        DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),
+    };
+   
 
-    vert.position.x = 1; // upper right back    5
-    vert.position.y = 1;
-    vert.position.z = 1;
-    triangleVertices.push_back(vert);
+    for (int face = 0; face < 6; face++) {
 
-    vert.position.x = 1; // upper right front   6
-    vert.position.y = 1;
-    vert.position.z = -1;
-    triangleVertices.push_back(vert);
+        DirectX::XMVECTOR localUp = faces[face];
+        DirectX::XMVECTOR xAxis = DirectX::XMVectorSet(DirectX::XMVectorGetY(localUp), DirectX::XMVectorGetZ(localUp), DirectX::XMVectorGetX(localUp), 0.0f);
+        DirectX::XMVECTOR yAxis = DirectX::XMVector3Cross(localUp, xAxis);
+        yAxis = DirectX::XMVectorNegate(yAxis);
 
-    vert.position.x = -1; // upper left front   7
-    vert.position.y = 1;
-    vert.position.z = -1;
-    triangleVertices.push_back(vert);
+        for (int y = 0; y < resolution; y++) {
+            for (int x = 0; x < resolution; x++) {
+                int i = y * resolution + x;
+                float xPercent = (float)x / (resolution - 1);
+                float yPercent = (float)y / (resolution - 1);
+                float xStage = (xPercent - 0.5f) * 2.0f;
+                float yStage = (yPercent - 0.5f) * 2.0f;
+
+                DirectX::XMVECTOR px = DirectX::XMVectorScale(xAxis, xStage);
+                DirectX::XMVECTOR py = DirectX::XMVectorScale(yAxis, yStage);
+                DirectX::XMVECTOR point = DirectX::XMVectorAdd(localUp, px);
+                point = DirectX::XMVectorAdd(point, py);
+                point = DirectX::XMVector3Normalize(point);
+                DirectX::XMStoreFloat3(&vert.position, point);
+                triangleVertices.push_back(vert);
+            }
+        }
+    }
+    
+
+    
+
+
 
     // Indexes
-    triangleIndices = std::vector<DWORD>{
-        0, 1, 2,
-        2, 3, 0, // bottom
-        4, 5, 6,
-        6, 7, 4, // top
-        6, 5, 1,
-        1, 2, 6, // right
-        4, 7, 3,
-        3, 0, 4, // left
-        7, 6, 2,
-        2, 3, 7, // front
-        4, 0, 1,
-        1, 5, 4  // back
-        };
+    triangleIndices = std::vector<DWORD>{ };
+
+
+
+    int n = (resolution - 1) * (resolution - 1) * 2 * 3;
+
+    for (int face = 0; face < 6; face++) {
+
+        for (int y = 0; y < resolution - 1; y++) {
+            for (int x = 0; x < resolution - 1; x++) {
+                int vertexId = x + y * resolution + face* resolution* resolution;
+                triangleIndices.push_back(vertexId);
+                triangleIndices.push_back(vertexId + resolution);
+                triangleIndices.push_back(vertexId + resolution + 1);
+                triangleIndices.push_back(vertexId);
+                triangleIndices.push_back(vertexId + resolution + 1);
+                triangleIndices.push_back(vertexId + 1);
+            }
+        }
+    }
+    
 
     return;
 }
