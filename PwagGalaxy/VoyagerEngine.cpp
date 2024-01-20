@@ -3,12 +3,15 @@
 
 #include "dx_includes/DXSampleHelper.h"
 #include "TextureLoader.h"
+#include "Noise.h"
 #include "WindowsApplication.h"
 #include "Timer.h"
 #include "DXContext.h"
 #include "BufferMemoryManager.h"
 #include "EngineHelpers.h"
 #include "AssetConfigReader.h"
+#include <random>
+
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -33,9 +36,9 @@ void VoyagerEngine::OnUpdate()
     OnEarlyUpdate();
 
     // update app logic, such as moving the camera or figuring out what objects are in view
-    static float rIncrement = 0.002f;
-    static float gIncrement = 0.006f;
-    static float bIncrement = 0.009f;
+    static float rIncrement = 0.00002f;
+    static float gIncrement = 0.00006f;
+    static float bIncrement = 0.00009f;
 
     m_cbData.colorMultiplier.x += rIncrement;
     m_cbData.colorMultiplier.y += gIncrement;
@@ -541,9 +544,6 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     Vertex vert;
     vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
 
-
-
-
     DirectX::XMVECTOR faces[] = {
         DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
         DirectX::XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f),
@@ -553,6 +553,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
         DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),
     };
    
+
 
     for (int face = 0; face < 6; face++) {
 
@@ -581,17 +582,63 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     }
     
 
-    
+    std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
+    std::mt19937 generator(std::random_device{}());
+
+
+
+   
+
+
+
+
+        Noise noise;
+        float baseRoughness = 0.9f;
+        float roughness = 2.8f;
+        float persistance = 0.46f;
+        int steps = 3;
+        DirectX::XMFLOAT3 centre = DirectX::XMFLOAT3(0, 0, 0);
+        float minValue = 0.89f;
+        float strength = 0.26f;
+
+        for (int i = 0; i < 6*resolution* resolution; i++) {
+
+            float noiseValue = 0.0f;
+            float amplitude = 1.0f;
+            float frequency = baseRoughness;
+
+
+            for (int s = 0; s < steps; s++) {
+
+                DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
+                    triangleVertices[i].position.x * frequency + centre.x,
+                    triangleVertices[i].position.y * frequency + centre.y,
+                    triangleVertices[i].position.z * frequency + centre.z
+                );
+                float signal = noise.Evaluate(point);
+
+
+                noiseValue += amplitude * (signal +1.0f) * (0.5f);
+                frequency *= roughness;
+                amplitude *= persistance;
+            }
+            noiseValue = (0 > ( noiseValue - minValue)) ? 0.0f : noiseValue - minValue;
+            noiseValue *= strength;
+
+            float planetRadius = 1.0f;
+            float elevation = planetRadius * (1 + noiseValue);
+
+                triangleVertices[i].position.x *= elevation;
+                triangleVertices[i].position.y *= elevation;
+                triangleVertices[i].position.z *= elevation;
+        }
+
+
 
 
 
     // Indexes
     triangleIndices = std::vector<DWORD>{ };
-
-
-
-    int n = (resolution - 1) * (resolution - 1) * 2 * 3;
-
     for (int face = 0; face < 6; face++) {
 
         for (int y = 0; y < resolution - 1; y++) {
@@ -610,6 +657,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 
     return;
 }
+
 
 void VoyagerEngine::OnEarlyUpdate()
 {
