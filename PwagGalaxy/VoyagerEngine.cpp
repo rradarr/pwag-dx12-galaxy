@@ -9,6 +9,7 @@
 #include "BufferMemoryManager.h"
 #include "EngineHelpers.h"
 #include "AssetConfigReader.h"
+#include "ShaderResourceHeapManager.h"
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -247,6 +248,8 @@ void VoyagerEngine::LoadPipeline()
     }
 
     std::cout << "Pipeline loaded." << std::endl;
+
+    ShaderResourceHeapManager::CreateHeap(mc_frameBufferCount + 1);
 }
 
 void VoyagerEngine::LoadAssets()
@@ -281,17 +284,17 @@ void VoyagerEngine::LoadAssets()
 
     // Create the buffers for use with the root signature
     {
-        // Create our main SRV/CBV/UAV descriptor heap
-        D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-        heapDesc.NumDescriptors = mc_frameBufferCount + 1; // Amount of all used descriptors (cbv per frame + one texture)
-        heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-        heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
-        m_shaderAccessHeap->SetName(L"Main Shader Access Descriptor Heap");
+        //// Create our main SRV/CBV/UAV descriptor heap
+        //D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+        //heapDesc.NumDescriptors = mc_frameBufferCount + 1; // Amount of all used descriptors (cbv per frame + one texture)
+        //heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        //heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        //ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
+        //m_shaderAccessHeap->SetName(L"Main Shader Access Descriptor Heap");
 
-        m_shaderAccessDescriptorSize = DXContext::getDevice().Get()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        m_shaderAccessHeapHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetCPUDescriptorHandleForHeapStart());
-        m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHandle;
+        //m_shaderAccessDescriptorSize = DXContext::getDevice().Get()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        //m_shaderAccessHeapHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetCPUDescriptorHandleForHeapStart());
+        //m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHandle;
 
         // Create the constant buffer commited resource.
         // We will update the constant buffer one or more times per frame, so we will use only an upload heap
@@ -316,10 +319,12 @@ void VoyagerEngine::LoadAssets()
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
             cbvDesc.BufferLocation = m_constantDescriptorTableBuffers[i]->GetGPUVirtualAddress();
             cbvDesc.SizeInBytes = m_cbvPerFrameSize;    // CB size is required to be 256-byte aligned.
+            ShaderResourceHeapManager::AddConstantBufferView(cbvDesc);
+            std::cout << ShaderResourceHeapManager::GetCurrentHeadOffset() << std::endl;
 
-            DXContext::getDevice().Get()->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
+            /*DXContext::getDevice().Get()->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
             m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
-            std::cout << m_shaderAccessHeapHeadHandle.ptr << std::endl;
+            std::cout << m_shaderAccessHeapHeadHandle.ptr << std::endl;*/
         }
         ZeroMemory(&m_cbData, sizeof(m_cbData)); // Zero out the memory of our data.
 
@@ -379,8 +384,6 @@ void VoyagerEngine::LoadAssets()
         // Load the texture
         {
             sampleTexture.CreateFromFile("texture.png"); // Create the texture from file.
-            sampleTexture.CreateTextureView(m_shaderAccessHeapHeadHandle); // Add the texture resource view to the heap.
-            m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize); // Update the heap HEAD pointer/handle.
         }
 
         // Create the depth/stencil heap and buffer.
@@ -474,15 +477,15 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // set constant buffer descriptor table heap and srv descriptor table heap
-    ID3D12DescriptorHeap* descriptorHeaps[] = { m_shaderAccessHeap.Get() };
+    ID3D12DescriptorHeap* descriptorHeaps[] = { ShaderResourceHeapManager::GetHeap().Get() };
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
     // set the root descriptor table 0 to the constant buffer descriptor heap
-    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
+    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
 
     // set the root descriptor table 2 to the srv
-    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(3, m_shaderAccessDescriptorSize));
+    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
 
     // draw suzanne
     suzanneMesh.InsertBufferBind(m_commandList);
@@ -491,8 +494,8 @@ void VoyagerEngine::PopulateCommandList()
 
     m_commandList->SetPipelineState(materialNoTex.GetPSO().Get());
     m_commandList->SetGraphicsRootSignature(materialNoTex.GetRootSignature().Get());
-    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
+    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
     // draw ball
     ballMesh.InsertBufferBind(m_commandList);
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
