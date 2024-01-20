@@ -3,13 +3,15 @@
 
 #include "dx_includes/DXSampleHelper.h"
 #include "TextureLoader.h"
-#include "Noise.h"
 #include "WindowsApplication.h"
 #include "Timer.h"
 #include "DXContext.h"
 #include "BufferMemoryManager.h"
 #include "EngineHelpers.h"
 #include "AssetConfigReader.h"
+
+#include "Noise.h"
+#include "ConfigurationGenerator.h"
 #include <random>
 
 
@@ -66,7 +68,7 @@ void VoyagerEngine::OnUpdate()
     // Update object positions.
     // create rotation matrices
     DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
-    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.002f);
+    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.0002f);
     DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
 
     // add rotation to cube1's rotation matrix and store it
@@ -436,6 +438,7 @@ void VoyagerEngine::LoadScene()
 
     AssetConfigReader reader;
     bool result = reader.ReadJson("assets.json");
+
     if (result)
     {
         std::cout << "JSON 'assets.json' read successfully." << std::endl;
@@ -582,9 +585,13 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     }
     
 
-    std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
-    std::mt19937 generator(std::random_device{}());
+    //std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
+    //std::mt19937 generator(std::random_device{}());
 
+
+    ConfigurationGenerator generator;
+    std::cout <<"SEED: " << generator.GenerateSeed("Atheos") << std::endl;
+    std::cout << "SEED: " << generator.GenerateSeed("Atheos2") << std::endl;
 
 
    
