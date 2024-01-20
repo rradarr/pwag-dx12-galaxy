@@ -98,6 +98,9 @@ StyleCopReport.xml
 *.svclog
 *.scc
 
+# Obj exception for 3D reources
+!PwagGalaxy/resources/*.obj
+
 # Chutzpah Test files
 _Chutzpah*
 
