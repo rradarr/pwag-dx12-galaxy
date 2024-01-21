@@ -41,12 +41,24 @@ struct PlanetOrbitSettings {
 
 struct PlanetSettings
 {
-    PlanetSurfaceSettings orbitDescriptor;
-    PlanetOrbitSettings surfaceDescriptor;
+    PlanetSurfaceSettings surfaceDescriptor;
+    PlanetOrbitSettings orbitDescriptor;
     float probability = 0.2f;
     MinMaxRange radius = { 10.0f, 50.0f };
     MinMaxRange velocity = { 10.0f, 50.0f };
     MinMaxRangeInt numberOfLayers = { 2, 4 };
+};
+
+
+struct PlanetSurfaceConfiguration {
+    float baseRoughness;
+    float roughness;
+    float persistance;
+    int steps;
+    DirectX::XMFLOAT3 centre;
+    float minValue;
+    float strength;
+    bool userFirstLayerAsMask = false;
 };
 
 struct PlanetConfiguration
@@ -64,6 +76,7 @@ struct PlanetConfiguration
     int numberOfLayers;
     float orbit;
     DirectX::XMFLOAT3 starPosition;
+    std::vector<PlanetSurfaceConfiguration> layers;
 };
 
 
@@ -72,13 +85,18 @@ struct PlanetConfiguration
 class ConfigurationGenerator
 {
     public:
-        //PlanetConfiguration GeneratePlanetConfiguration(std::string id, float orbit, DirectX::XMFLOAT3 starPosition);
+        PlanetConfiguration GeneratePlanetConfiguration(std::string id, float orbit, DirectX::XMFLOAT3 starPosition);
         std::string GenerateSeed(std::string key);
+        void PrintPlanetConfiguration(const PlanetConfiguration& planetConfig);
     private:
         GeneralSettings generalSettings;
         PlanetSettings planetSettings;
+        std::vector<float> GenerateProbabilityTable(const std::string& seed);
+        float EstimateValue(MinMaxRange attribute, float probability);
+        int EstimateValue(MinMaxRangeInt attribute, float probability);
+        
 
-        
-        
+       
+    
 };
 

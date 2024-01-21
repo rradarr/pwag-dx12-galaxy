@@ -112,7 +112,7 @@ void Material::CreatePSO(ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelSh
     psoDesc.VS = { reinterpret_cast<UINT8*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
     psoDesc.PS = { reinterpret_cast<UINT8*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; // TODO: This changes between solid and wireframe.
+    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME; // TODO: This changes between solid and wireframe.
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = dtDesc;
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
