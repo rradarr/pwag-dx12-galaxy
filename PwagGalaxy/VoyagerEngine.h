@@ -3,6 +3,7 @@
 #include "Engine.h"
 #include "Camera.h"
 #include "Mesh.h"
+#include "Noise.h"
 #include "Texture.h"
 #include "DefaultTexturedMaterial.h"
 
