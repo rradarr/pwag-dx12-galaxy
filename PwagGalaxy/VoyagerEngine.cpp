@@ -540,7 +540,7 @@ void VoyagerEngine::CreateSphere()
 
 void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
 {
-    int resolution = 256;
+    int resolution = 128;
 
     Vertex vert;
     vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
@@ -601,57 +601,42 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     }
 
     Noise noise;
-    float baseRoughness = 0.9f;
-    float roughness = 2.8f;
-    float persistance = 0.46f;
-    int steps = 3;
-    DirectX::XMFLOAT3 centre = DirectX::XMFLOAT3(0, 0, 0);
-    float minValue = 0.89f;
-    float strength = 0.26f;
+
+    PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(randomString, 15.0f, DirectX::XMFLOAT3(0, 0, 0));
+    generator.PrintPlanetConfiguration(planetDescripton);
+
+
 
     for (int i = 0; i < 6*resolution* resolution; i++) {
 
         float noiseValue = 0.0f;
         float amplitude = 1.0f;
-        float frequency = baseRoughness;
+        float frequency = planetDescripton.layers[0].baseRoughness;
 
 
+        for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
 
-    PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(randomString, 15.0f, DirectX::XMFLOAT3(0, 0, 0));
-    generator.PrintPlanetConfiguration(planetDescripton);
+            DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
+                triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
+                triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
+                triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
+            );
+            float signal = noise.Evaluate(point);
 
-        Noise noise;
-
-        for (int i = 0; i < 6*resolution* resolution; i++) {
-
-            float noiseValue = 0.0f;
-            float amplitude = 1.0f;
-            float frequency = planetDescripton.layers[0].baseRoughness;
-
-
-            for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
-
-                DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
-                    triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
-                    triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
-                    triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
-                );
-                float signal = noise.Evaluate(point);
-
-                noiseValue += amplitude * (signal +1.0f) * (0.5f);
-                frequency *= planetDescripton.layers[0].roughness;
-                amplitude *= planetDescripton.layers[0].persistance;
-            }
-            noiseValue = (0 > ( noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
-            noiseValue *= planetDescripton.layers[0].strength;
-
-            float planetRadius = 1.0f;
-            float elevation = planetRadius * (1 + noiseValue);
-
-                triangleVertices[i].position.x *= elevation;
-                triangleVertices[i].position.y *= elevation;
-                triangleVertices[i].position.z *= elevation;
+            noiseValue += amplitude * (signal +1.0f) * (0.5f);
+            frequency *= planetDescripton.layers[0].roughness;
+            amplitude *= planetDescripton.layers[0].persistance;
         }
+        noiseValue = (0 > ( noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
+        noiseValue *= planetDescripton.layers[0].strength;
+
+        float planetRadius = 1.0f;
+        float elevation = planetRadius * (1 + noiseValue);
+
+            triangleVertices[i].position.x *= elevation;
+            triangleVertices[i].position.y *= elevation;
+            triangleVertices[i].position.z *= elevation;
+        
     }
 
     // Indexes
