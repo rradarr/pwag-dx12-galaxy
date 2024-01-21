@@ -3,6 +3,7 @@ struct PSInput
     float4 position : SV_POSITION;
     float4 color : COLOR;
     float2 texCoord : TEXCOORD;
+    float3 normal : NORMAL;
 };
 
 Texture2D t0 : register(t0);

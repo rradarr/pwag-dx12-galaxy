@@ -3,6 +3,7 @@ struct PSInput
     float4 position : SV_POSITION;
     float4 color : COLOR;
     float2 texCoord : TEXCOORD;
+    float3 normal : NORMAL;
 };
 
 struct ColorMultiplierValue
@@ -27,7 +28,7 @@ ConstantBuffer<wvpMatrixValue> constantRootDescriptor : register(b1);
 //    float4x4 wvpMatrix;
 //}
 
-PSInput main(float4 position : POSITION, float4 color : COLOR, float2 uv : UV)
+PSInput main(float4 position : POSITION, float4 color : COLOR, float2 uv : UV, float3 normal : NORMAL)
 {
     PSInput result;
 
@@ -35,6 +36,7 @@ PSInput main(float4 position : POSITION, float4 color : COLOR, float2 uv : UV)
     //result.position = position;
     result.color = color * constantDescriptorTable.colorMultiplier;
     result.texCoord = uv;
+    result.normal = normal;
 
     return result;
 }
