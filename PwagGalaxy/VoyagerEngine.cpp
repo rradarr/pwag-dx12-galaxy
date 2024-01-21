@@ -4,13 +4,15 @@
 #include "dx_includes/DXSampleHelper.h"
 #include "ShaderResourceHeapManager.h"
 #include "TextureLoader.h"
-#include "Noise.h"
 #include "WindowsApplication.h"
 #include "Timer.h"
 #include "DXContext.h"
 #include "BufferMemoryManager.h"
 #include "EngineHelpers.h"
 #include "AssetConfigReader.h"
+
+#include "Noise.h"
+#include "ConfigurationGenerator.h"
 #include <random>
 
 
@@ -67,7 +69,7 @@ void VoyagerEngine::OnUpdate()
     // Update object positions.
     // create rotation matrices
     DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
-    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.002f);
+    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.0002f);
     DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
 
     // add rotation to cube1's rotation matrix and store it
@@ -438,6 +440,7 @@ void VoyagerEngine::LoadScene()
 
     AssetConfigReader reader;
     bool result = reader.ReadJson("assets.json");
+
     if (result)
     {
         std::cout << "JSON 'assets.json' read successfully." << std::endl;
@@ -537,7 +540,7 @@ void VoyagerEngine::CreateSphere()
 
 void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
 {
-    int resolution = 256;
+    int resolution = 128;
 
     Vertex vert;
     vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
@@ -580,41 +583,52 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
         }
     }
 
-    std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
-    std::mt19937 generator(std::random_device{}());
+    //std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
+    //std::mt19937 generator(std::random_device{}());
+
+
+    ConfigurationGenerator generator;
+
+
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const int charsetSize = sizeof(charset) - 1;
+
+    std::string randomString;
+    randomString.reserve(10);
+
+    for (int i = 0; i < 10; ++i) {
+        randomString += charset[rand() % charsetSize];
+    }
 
     Noise noise;
-    float baseRoughness = 0.9f;
-    float roughness = 2.8f;
-    float persistance = 0.46f;
-    int steps = 3;
-    DirectX::XMFLOAT3 centre = DirectX::XMFLOAT3(0, 0, 0);
-    float minValue = 0.89f;
-    float strength = 0.26f;
+
+    PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(randomString, 15.0f, DirectX::XMFLOAT3(0, 0, 0));
+    generator.PrintPlanetConfiguration(planetDescripton);
+
+
 
     for (int i = 0; i < 6*resolution* resolution; i++) {
 
         float noiseValue = 0.0f;
         float amplitude = 1.0f;
-        float frequency = baseRoughness;
+        float frequency = planetDescripton.layers[0].baseRoughness;
 
 
-        for (int s = 0; s < steps; s++) {
+        for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
 
             DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
-                triangleVertices[i].position.x * frequency + centre.x,
-                triangleVertices[i].position.y * frequency + centre.y,
-                triangleVertices[i].position.z * frequency + centre.z
+                triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
+                triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
+                triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
             );
             float signal = noise.Evaluate(point);
 
-
             noiseValue += amplitude * (signal +1.0f) * (0.5f);
-            frequency *= roughness;
-            amplitude *= persistance;
+            frequency *= planetDescripton.layers[0].roughness;
+            amplitude *= planetDescripton.layers[0].persistance;
         }
-        noiseValue = (0 > ( noiseValue - minValue)) ? 0.0f : noiseValue - minValue;
-        noiseValue *= strength;
+        noiseValue = (0 > ( noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
+        noiseValue *= planetDescripton.layers[0].strength;
 
         float planetRadius = 1.0f;
         float elevation = planetRadius * (1 + noiseValue);
@@ -622,7 +636,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
             triangleVertices[i].position.x *= elevation;
             triangleVertices[i].position.y *= elevation;
             triangleVertices[i].position.z *= elevation;
-
+        
     }
 
     // Indexes
