@@ -5,7 +5,10 @@
 #include "Mesh.h"
 #include "Noise.h"
 #include "Texture.h"
+#include "Material.h"
 #include "DefaultTexturedMaterial.h"
+#include "WireframeMaterial.h"
+#include "NormalsDebugMaterial.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -54,8 +57,10 @@ private:
     // For main shader access heap the static ShaderResourceHeapManager is used.
 
     // App resources.
-    DefaultTexturedMaterial defaultMaterial;
+    DefaultTexturedMaterial materialTextured;
     Material materialNoTex;
+    WireframeMaterial materialWireframe;
+    NormalsDebugMaterial materialNormalsDebug;
 
     Mesh suzanneMesh;
     Mesh ballMesh;
@@ -93,6 +98,7 @@ private:
 
     void LoadPipeline();
     void LoadAssets();
+    void LoadMaterials();
     void LoadScene();
     void PopulateCommandList();
     void WaitForPreviousFrame();

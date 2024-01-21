@@ -8,5 +8,5 @@ struct PSInput
 
 float4 main(PSInput input) : SV_TARGET
 {
-    return input.color;
+    return float4(input.normal, 1);
 }
