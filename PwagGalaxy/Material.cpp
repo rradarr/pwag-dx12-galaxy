@@ -90,7 +90,8 @@ void Material::CreatePSO(ComPtr<ID3DBlob> vertexShader, ComPtr<ID3DBlob> pixelSh
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
+        { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
     };
 
     // Prepare the depth/stencil descpriptor for the PSO creation
@@ -144,19 +145,6 @@ std::vector<D3D12_ROOT_PARAMETER> Material::CreateRootParameters()
     descriptorTableVertex.NumDescriptorRanges = descriptorTableVertexRanges.size();
     descriptorTableVertex.pDescriptorRanges = descriptorTableVertexRanges.data(); // the pointer to the beginning of our ranges array
 
-    //// Create the descriptor range for the texture resource (it needs to be a separate root parameter as it's used by a different shader stage!)
-    //D3D12_DESCRIPTOR_RANGE  descriptorTablePixelRanges[1];
-    //descriptorTablePixelRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    //descriptorTablePixelRanges[0].NumDescriptors = 1;
-    //descriptorTablePixelRanges[0].BaseShaderRegister = 0; // t0 in shader
-    //descriptorTablePixelRanges[0].RegisterSpace = 0;
-    //descriptorTablePixelRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-    //// create a descriptor table for the pixel stage
-    //D3D12_ROOT_DESCRIPTOR_TABLE descriptorTablePixel;
-    //descriptorTablePixel.NumDescriptorRanges = _countof(descriptorTablePixelRanges);
-    //descriptorTablePixel.pDescriptorRanges = &descriptorTablePixelRanges[0]; // the pointer to the beginning of our ranges array
-
     // Create the root descriptor (for wvp matrices)
     D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
     rootCBVDescriptor.ShaderRegister = 1; // b1 in shader
@@ -171,10 +159,6 @@ std::vector<D3D12_ROOT_PARAMETER> Material::CreateRootParameters()
     rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[1].Descriptor = rootCBVDescriptor;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-
-    //rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // this is a descriptor table
-    //rootParameters[2].DescriptorTable = descriptorTablePixel; // this is our descriptor table for this root parameter
-    //rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // pixel will access srv (texture)
 
     return rootParameters;
 }

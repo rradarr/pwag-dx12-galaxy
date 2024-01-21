@@ -2,6 +2,7 @@
 #include "VoyagerEngine.h"
 
 #include "dx_includes/DXSampleHelper.h"
+#include "ShaderResourceHeapManager.h"
 #include "TextureLoader.h"
 #include "WindowsApplication.h"
 #include "Timer.h"
@@ -252,16 +253,12 @@ void VoyagerEngine::LoadPipeline()
     }
 
     std::cout << "Pipeline loaded." << std::endl;
+
+    ShaderResourceHeapManager::CreateHeap(mc_frameBufferCount + 1);
 }
 
 void VoyagerEngine::LoadAssets()
 {
-    defaultMaterial.SetShaders("VertexShader.hlsl", "PixelShader.hlsl");
-    defaultMaterial.CreateMaterial();
-
-    materialNoTex.SetShaders("VertexShader_noTex.hlsl", "PixelShader_noTex.hlsl");
-    materialNoTex.CreateMaterial();
-
     // Create the command list.
     ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), nullptr, IID_PPV_ARGS(&m_commandList)));
 
@@ -286,18 +283,6 @@ void VoyagerEngine::LoadAssets()
 
     // Create the buffers for use with the root signature
     {
-        // Create our main SRV/CBV/UAV descriptor heap
-        D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-        heapDesc.NumDescriptors = mc_frameBufferCount + 1; // Amount of all used descriptors (cbv per frame + one texture)
-        heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-        heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
-        m_shaderAccessHeap->SetName(L"Main Shader Access Descriptor Heap");
-
-        m_shaderAccessDescriptorSize = DXContext::getDevice().Get()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        m_shaderAccessHeapHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetCPUDescriptorHandleForHeapStart());
-        m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHandle;
-
         // Create the constant buffer commited resource.
         // We will update the constant buffer one or more times per frame, so we will use only an upload heap
         // unlike previously we used an upload heap to upload the vertex and index data, and then copied over
@@ -321,10 +306,12 @@ void VoyagerEngine::LoadAssets()
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
             cbvDesc.BufferLocation = m_constantDescriptorTableBuffers[i]->GetGPUVirtualAddress();
             cbvDesc.SizeInBytes = m_cbvPerFrameSize;    // CB size is required to be 256-byte aligned.
+            ShaderResourceHeapManager::AddConstantBufferView(cbvDesc);
+            std::cout << ShaderResourceHeapManager::GetCurrentHeadOffset() << std::endl;
 
-            DXContext::getDevice().Get()->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
+            /*DXContext::getDevice().Get()->CreateConstantBufferView(&cbvDesc, m_shaderAccessHeapHeadHandle);
             m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize);
-            std::cout << m_shaderAccessHeapHeadHandle.ptr << std::endl;
+            std::cout << m_shaderAccessHeapHeadHandle.ptr << std::endl;*/
         }
         ZeroMemory(&m_cbData, sizeof(m_cbData)); // Zero out the memory of our data.
 
@@ -379,13 +366,11 @@ void VoyagerEngine::LoadAssets()
     // Create the vertex and index buffers.
     {
         CreateSphere();
-        suzanneMesh.CreateFromFile("suzanne.obj");
+        suzanneMesh.CreateFromFile("ship_v1_normals_test.obj");
 
         // Load the texture
         {
             sampleTexture.CreateFromFile("texture.png"); // Create the texture from file.
-            sampleTexture.CreateTextureView(m_shaderAccessHeapHeadHandle); // Add the texture resource view to the heap.
-            m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHeadHandle.Offset(1, m_shaderAccessDescriptorSize); // Update the heap HEAD pointer/handle.
         }
 
         // Create the depth/stencil heap and buffer.
@@ -416,7 +401,24 @@ void VoyagerEngine::LoadAssets()
         }
     }
 
+    LoadMaterials();
+
     std::cout << "Assets loaded." << std::endl;
+}
+
+void VoyagerEngine::LoadMaterials()
+{
+    materialTextured.SetShaders("VertexShader.hlsl", "PixelShader.hlsl");
+    materialTextured.CreateMaterial();
+
+    materialNoTex.SetShaders("VertexShader_noTex.hlsl", "PixelShader_noTex.hlsl");
+    materialNoTex.CreateMaterial();
+
+    materialWireframe.SetShaders("VertexShader_wireframe.hlsl", "PixelShader_wireframe.hlsl");
+    materialWireframe.CreateMaterial();
+
+    materialNormalsDebug.SetShaders("VertexShader_normalsDebug.hlsl", "PixelShader_normalsDebug.hlsl");
+    materialNormalsDebug.CreateMaterial();
 }
 
 void VoyagerEngine::LoadScene()
@@ -457,7 +459,7 @@ void VoyagerEngine::PopulateCommandList()
     // However, when ExecuteCommandList() is called on a particular command
     // list, that command list can then be reset at any time and must be before
     // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), defaultMaterial.GetPSO().Get()));
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), materialNormalsDebug.GetPSO().Get()));
 
     // Indicate that the back buffer will be used as a render target.
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -469,7 +471,7 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Set necessary state.
-    m_commandList->SetGraphicsRootSignature(defaultMaterial.GetRootSignature().Get());
+    m_commandList->SetGraphicsRootSignature(materialNormalsDebug.GetRootSignature().Get());
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -480,29 +482,29 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // set constant buffer descriptor table heap and srv descriptor table heap
-    ID3D12DescriptorHeap* descriptorHeaps[] = { m_shaderAccessHeap.Get() };
+    ID3D12DescriptorHeap* descriptorHeaps[] = { ShaderResourceHeapManager::GetHeap().Get() };
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
     // set the root descriptor table 0 to the constant buffer descriptor heap
-    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
+    //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
 
     // set the root descriptor table 2 to the srv
-    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(3, m_shaderAccessDescriptorSize));
+    //descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    //m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
 
-    // draw suzanne
-    suzanneMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
-    suzanneMesh.InsertDrawIndexed(m_commandList);
-
-    m_commandList->SetPipelineState(materialNoTex.GetPSO().Get());
-    m_commandList->SetGraphicsRootSignature(materialNoTex.GetRootSignature().Get());
-    descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, m_shaderAccessDescriptorSize));
+    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
     // draw ball
     ballMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
     ballMesh.InsertDrawIndexed(m_commandList);
+
+    // draw suzanne
+    //m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
+    //m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
+    suzanneMesh.InsertBufferBind(m_commandList);
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
+    suzanneMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -538,14 +540,12 @@ void VoyagerEngine::CreateSphere()
 
 void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
 {
-
-
-    int resolution = 32;
-
-
+    int resolution = 256;
 
     Vertex vert;
     vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
+    vert.uvCoordinates = {0.f, 0.f};
+    vert.normal = { 0.f, 0.f, 0.f };
 
     DirectX::XMVECTOR faces[] = {
         DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
@@ -555,8 +555,6 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
         DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
         DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),
     };
-   
-
 
     for (int face = 0; face < 6; face++) {
 
@@ -579,11 +577,11 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
                 point = DirectX::XMVectorAdd(point, py);
                 point = DirectX::XMVector3Normalize(point);
                 DirectX::XMStoreFloat3(&vert.position, point);
+
                 triangleVertices.push_back(vert);
             }
         }
     }
-    
 
     //std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
     //std::mt19937 generator(std::random_device{}());
@@ -602,6 +600,20 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
         randomString += charset[rand() % charsetSize];
     }
 
+    Noise noise;
+    float baseRoughness = 0.9f;
+    float roughness = 2.8f;
+    float persistance = 0.46f;
+    int steps = 3;
+    DirectX::XMFLOAT3 centre = DirectX::XMFLOAT3(0, 0, 0);
+    float minValue = 0.89f;
+    float strength = 0.26f;
+
+    for (int i = 0; i < 6*resolution* resolution; i++) {
+
+        float noiseValue = 0.0f;
+        float amplitude = 1.0f;
+        float frequency = baseRoughness;
 
 
 
@@ -640,10 +652,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
                 triangleVertices[i].position.y *= elevation;
                 triangleVertices[i].position.z *= elevation;
         }
-
-
-
-
+    }
 
     // Indexes
     triangleIndices = std::vector<DWORD>{ };
@@ -661,11 +670,51 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
             }
         }
     }
-    
+
+    // Calculate smooth normals:
+    // First, loop over all triangles and calculate per-triangle normal.
+    // Then add that normal to each vertex's normal.
+    for (int i = 0; i < triangleIndices.size() - 2; i++)
+    {
+        // Create two vectors along two edges, staring in one vetex.
+        DirectX::XMVECTOR edge1, edge2, vert1, vert2, vert3;
+        vert1 = DirectX::XMLoadFloat3(&triangleVertices[triangleIndices[i]].position);
+        vert2 = DirectX::XMLoadFloat3(&triangleVertices[triangleIndices[i + 1]].position);
+        vert3 = DirectX::XMLoadFloat3(&triangleVertices[triangleIndices[i + 2]].position);
+
+        edge1 = DirectX::XMVectorSubtract(vert2, vert1);
+        edge2 = DirectX::XMVectorSubtract(vert3, vert1);
+
+        // Calculate their cross product (face normal).
+        DirectX::XMVECTOR faceNormal = DirectX::XMVector3Cross(edge1, edge2);
+
+        // Add the face normal to the vertex normals.
+        DirectX::XMVECTOR normal1, normal2, normal3;
+        normal1 = DirectX::XMLoadFloat3(&triangleVertices[triangleIndices[i]].normal);
+        normal2 = DirectX::XMLoadFloat3(&triangleVertices[triangleIndices[i + 1]].normal);
+        normal3 = DirectX::XMLoadFloat3(&triangleVertices[triangleIndices[i + 2]].normal);
+
+        normal1 = DirectX::XMVectorAdd(normal1, faceNormal);
+        normal2 = DirectX::XMVectorAdd(normal2, faceNormal);
+        normal3 = DirectX::XMVectorAdd(normal3, faceNormal);
+
+        // Store the modified vertex normals.
+        DirectX::XMStoreFloat3(&triangleVertices[triangleIndices[i]].normal, normal1);
+        DirectX::XMStoreFloat3(&triangleVertices[triangleIndices[i + 1]].normal, normal2);
+        DirectX::XMStoreFloat3(&triangleVertices[triangleIndices[i + 2]].normal, normal3);
+    }
+
+    // Now loop over all vertices and normalize their normals (duh...).
+    // This will basically average the per-triangle normals and give smooth normals.
+    for (int i = 0; i < triangleVertices.size(); i++)
+    {
+        DirectX::XMVECTOR normal = DirectX::XMLoadFloat3(&triangleVertices[i].normal);
+        normal = DirectX::XMVector3Normalize(normal);
+        DirectX::XMStoreFloat3(&triangleVertices[i].normal, normal);
+    }
 
     return;
 }
-
 
 void VoyagerEngine::OnEarlyUpdate()
 {

@@ -150,16 +150,24 @@ bool Mesh::LoadModelFromFile(const std::string fileName, std::vector<Vertex>& me
             meshIndices[shapeID * shapeIndexNumber + vertexID] = static_cast<DWORD>(shapes[shapeID].mesh.indices[vertexID].vertex_index);
 
             // Store verte data in put structure.
-            float vertexX, vertexY, vertexZ, vertexU, vertexV;
+            float vertexX, vertexY, vertexZ, vertexU, vertexV, normalX, normalY, normalZ;
+
             vertexX = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index];
             vertexY = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index + 1];
             vertexZ = attrib.vertices[3 * shapes[shapeID].mesh.indices[vertexID].vertex_index + 2];
+
             vertexU = attrib.texcoords[2 * shapes[shapeID].mesh.indices[vertexID].texcoord_index];
             vertexV = attrib.texcoords[2 * shapes[shapeID].mesh.indices[vertexID].texcoord_index + 1];
+
+            normalX = attrib.normals[3 * shapes[shapeID].mesh.indices[vertexID].normal_index];
+            normalY = attrib.normals[3 * shapes[shapeID].mesh.indices[vertexID].normal_index + 1];
+            normalZ = attrib.normals[3 * shapes[shapeID].mesh.indices[vertexID].normal_index + 2];
+
             Vertex vertex = {
                 {vertexX, vertexY, vertexZ},
                 {1.f, 1.f, 1.f, 1.f},
-                {vertexU, vertexV}
+                {vertexU, vertexV},
+                {normalX, normalY, normalZ}
             };
             meshVertices[meshIndices[shapeID * 3 + vertexID]] = vertex;
         }
