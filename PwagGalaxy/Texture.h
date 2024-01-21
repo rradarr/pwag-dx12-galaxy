@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 using Microsoft::WRL::ComPtr;
 
 class Texture

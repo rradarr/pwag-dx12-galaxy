@@ -2,6 +2,7 @@
 #include "VoyagerEngine.h"
 
 #include "dx_includes/DXSampleHelper.h"
+#include "ShaderResourceHeapManager.h"
 #include "TextureLoader.h"
 #include "Noise.h"
 #include "WindowsApplication.h"
@@ -11,7 +12,6 @@
 #include "EngineHelpers.h"
 #include "AssetConfigReader.h"
 #include <random>
-#include "ShaderResourceHeapManager.h"
 
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
@@ -263,6 +263,9 @@ void VoyagerEngine::LoadAssets()
     materialNoTex.SetShaders("VertexShader_noTex.hlsl", "PixelShader_noTex.hlsl");
     materialNoTex.CreateMaterial();
 
+    materialWireframe.SetShaders("VertexShader_wireframe.hlsl", "PixelShader_wireframe.hlsl");
+    materialWireframe.CreateMaterial();
+
     // Create the command list.
     ThrowIfFailed(DXContext::getDevice().Get()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[0].Get(), nullptr, IID_PPV_ARGS(&m_commandList)));
 
@@ -483,13 +486,13 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
     suzanneMesh.InsertDrawIndexed(m_commandList);
 
-    m_commandList->SetPipelineState(materialNoTex.GetPSO().Get());
-    m_commandList->SetGraphicsRootSignature(materialNoTex.GetRootSignature().Get());
+    m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
+    m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
     descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
+    //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
     // draw ball
     ballMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
     ballMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
@@ -543,7 +546,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
         DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
         DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),
     };
-   
+
 
 
     for (int face = 0; face < 6; face++) {
@@ -571,14 +574,14 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
             }
         }
     }
-    
+
 
     std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
     std::mt19937 generator(std::random_device{}());
 
 
 
-   
+
 
 
 
@@ -644,7 +647,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
             }
         }
     }
-    
+
 
     return;
 }

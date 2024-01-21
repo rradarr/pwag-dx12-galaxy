@@ -5,7 +5,9 @@
 #include "Mesh.h"
 #include "Noise.h"
 #include "Texture.h"
+#include "Material.h"
 #include "DefaultTexturedMaterial.h"
+#include "WireframeMaterial.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -56,6 +58,7 @@ private:
     // App resources.
     DefaultTexturedMaterial defaultMaterial;
     Material materialNoTex;
+    WireframeMaterial materialWireframe;
 
     Mesh suzanneMesh;
     Mesh ballMesh;
