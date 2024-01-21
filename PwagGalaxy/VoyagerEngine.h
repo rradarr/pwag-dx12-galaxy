@@ -50,11 +50,7 @@ private:
 
     ComPtr<ID3D12Resource> m_depthStencilBuffer;
     ComPtr<ID3D12DescriptorHeap> m_dsHeap;
-
-    //ComPtr<ID3D12DescriptorHeap> m_shaderAccessHeap; // Main descriptor heap for all SRV/CBV/UAV resource descriptors
-    //CD3DX12_CPU_DESCRIPTOR_HANDLE m_shaderAccessHeapHandle;
-    //CD3DX12_CPU_DESCRIPTOR_HANDLE m_shaderAccessHeapHeadHandle;
-    //UINT m_shaderAccessDescriptorSize;
+    // For main shader access heap the static ShaderResourceHeapManager is used.
 
     // App resources.
     DefaultTexturedMaterial defaultMaterial;

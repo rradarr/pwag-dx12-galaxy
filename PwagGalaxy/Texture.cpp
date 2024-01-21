@@ -56,6 +56,6 @@ void Texture::CreateTextureView()
     srvDesc.Format = textureDesc.Format;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
-    //DXContext::getDevice().Get()->CreateShaderResourceView(textureBuffer.Get(), &srvDesc, heapHandle);
+
     viewOffsetInHeap = ShaderResourceHeapManager::AddShaderResourceView(srvDesc, textureBuffer);
 }

@@ -284,18 +284,6 @@ void VoyagerEngine::LoadAssets()
 
     // Create the buffers for use with the root signature
     {
-        //// Create our main SRV/CBV/UAV descriptor heap
-        //D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-        //heapDesc.NumDescriptors = mc_frameBufferCount + 1; // Amount of all used descriptors (cbv per frame + one texture)
-        //heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-        //heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        //ThrowIfFailed(DXContext::getDevice().Get()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_shaderAccessHeap)));
-        //m_shaderAccessHeap->SetName(L"Main Shader Access Descriptor Heap");
-
-        //m_shaderAccessDescriptorSize = DXContext::getDevice().Get()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        //m_shaderAccessHeapHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_shaderAccessHeap->GetCPUDescriptorHandleForHeapStart());
-        //m_shaderAccessHeapHeadHandle = m_shaderAccessHeapHandle;
-
         // Create the constant buffer commited resource.
         // We will update the constant buffer one or more times per frame, so we will use only an upload heap
         // unlike previously we used an upload heap to upload the vertex and index data, and then copied over
