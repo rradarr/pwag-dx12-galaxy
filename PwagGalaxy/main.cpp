@@ -14,7 +14,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     std::cout << "Hello World!" << std::endl;
 
-    VoyagerEngine voyager(500, 500, L"Voyager Game");
+    VoyagerEngine voyager(800, 800, L"Voyager Game");
     int returnCode = WindowsApplication::Run(&voyager, hInstance, nCmdShow);
 
     return returnCode;
