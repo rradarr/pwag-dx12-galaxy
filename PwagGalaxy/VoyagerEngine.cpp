@@ -38,10 +38,13 @@ void VoyagerEngine::OnUpdate()
 {
     OnEarlyUpdate();
 
+    Timer* timer = Timer::GetInstance();
+    double deltaTime = timer->GetDeltaTime();
+
     // update app logic, such as moving the camera or figuring out what objects are in view
-    static float rIncrement = 0.00002f;
-    static float gIncrement = 0.00006f;
-    static float bIncrement = 0.00009f;
+    static float rIncrement = 0.2f * deltaTime;
+    static float gIncrement = 0.6f * deltaTime;
+    static float bIncrement = 0.9f * deltaTime;
 
     m_cbData.colorMultiplier.x += rIncrement;
     m_cbData.colorMultiplier.y += gIncrement;
@@ -68,9 +71,9 @@ void VoyagerEngine::OnUpdate()
 
     // Update object positions.
     // create rotation matrices
-    DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
-    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.0002f);
-    DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
+    DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f * deltaTime);
+    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.2f * deltaTime);
+    DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f * deltaTime);
 
     // add rotation to cube1's rotation matrix and store it
     DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&pyramid1RotMat) * rotXMat * rotYMat * rotZMat;
@@ -102,9 +105,9 @@ void VoyagerEngine::OnUpdate()
 
     // now do cube2's world matrix
     // create rotation matrices for piramid2
-    rotXMat = DirectX::XMMatrixRotationX(0.f);
-    rotYMat = DirectX::XMMatrixRotationY(0.01f);
-    rotZMat = DirectX::XMMatrixRotationZ(0.f);
+    rotXMat = DirectX::XMMatrixRotationX(0.f * deltaTime);
+    rotYMat = DirectX::XMMatrixRotationY(0.3f * deltaTime);
+    rotZMat = DirectX::XMMatrixRotationZ(0.f * deltaTime);
 
     // add rotation to cube2's rotation matrix and store it
     rotMat = rotZMat * (DirectX::XMLoadFloat4x4(&pyramid2RotMat) * (rotXMat * rotYMat));
@@ -683,7 +686,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
             triangleVertices[i].position.x *= elevation;
             triangleVertices[i].position.y *= elevation;
             triangleVertices[i].position.z *= elevation;
-        
+
     }
 
     // Indexes
