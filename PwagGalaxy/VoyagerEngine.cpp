@@ -13,6 +13,7 @@
 
 #include "Noise.h"
 #include "ConfigurationGenerator.h"
+#include "EngineObject.h"
 #include <random>
 
 
@@ -66,6 +67,17 @@ void VoyagerEngine::OnUpdate()
     // copy our ConstantBuffer instance to the mapped constant buffer resource
     memcpy(cbColorMultiplierGPUAddress[m_frameBufferIndex], &m_cbData, sizeof(m_cbData));
 
+
+
+
+
+  
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Update object positions.
     // create rotation matrices
     DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
@@ -100,13 +112,55 @@ void VoyagerEngine::OnUpdate()
     // copy our ConstantBuffer instance to the mapped constant buffer resource
     memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex], &m_wvpPerObject, sizeof(m_wvpPerObject));
 
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   // Update object positions.
+   // create rotation matrices
+    {
+        DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
+        DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.0002f);
+        DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
+
+        // add rotation to cube1's rotation matrix and store it
+        DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&pyramid1RotMat) * rotXMat * rotYMat * rotZMat;
+        DirectX::XMStoreFloat4x4(&pyramid1RotMat, rotMat);
+
+        // create translation matrix for cube 1 from cube 1's position vector
+        DirectX::XMFLOAT4 pam = DirectX::XMFLOAT4(3, 0.5, 0.5, 1.0);
+        DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&pam));
+
+        // create cube1's world matrix by first rotating the cube, then positioning the rotated cube
+        DirectX::XMMATRIX worldMat = rotMat * translationMat;
+
+        // store cube1's world matrix
+        DirectX::XMStoreFloat4x4(&pyramid1WorldMat, worldMat);
+        // Store the world matrix (for lighting).
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
+        // Store the view matrix (for lighting).
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+
+        // update constant buffer for cube1
+        // create the wvp matrix and store in constant buffer
+        DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat); // load view matrix
+        DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&m_mainCamera.projMat); // load projection matrix
+        DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&pyramid1WorldMat) * viewMat * projMat; // create wvp matrix
+        DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
+        // copy our ConstantBuffer instance to the mapped constant buffer resource
+        memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject));
+    }
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // now do cube2's world matrix
     // create rotation matrices for piramid2
     rotXMat = DirectX::XMMatrixRotationX(0.f);
     rotYMat = DirectX::XMMatrixRotationY(0.01f);
     rotZMat = DirectX::XMMatrixRotationZ(0.f);
 
-    // add rotation to cube2's rotation matrix and store it
+    // add rotation to cube2's rotation matrix and store it // MACIERZ obrotu obiketu
     rotMat = rotZMat * (DirectX::XMLoadFloat4x4(&pyramid2RotMat) * (rotXMat * rotYMat));
     DirectX::XMStoreFloat4x4(&pyramid2RotMat, rotMat);
 
@@ -116,6 +170,10 @@ void VoyagerEngine::OnUpdate()
 
     // we want cube 2 to be half the size of cube 1, so we scale it by .5 in all dimensions
     DirectX::XMMATRIX scaleMat = DirectX::XMMatrixScaling(0.5f, 0.5f, 0.5f);
+
+
+
+
 
     // reuse worldMat.
     // first we scale cube2. scaling happens relative to point 0,0,0, so you will almost always want to scale first
@@ -130,12 +188,17 @@ void VoyagerEngine::OnUpdate()
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
 
+
     wvpMat = DirectX::XMLoadFloat4x4(&pyramid2WorldMat) * viewMat * projMat; // create wvp matrix
     transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
 
     // copy our ConstantBuffer instance to the mapped constant buffer resource
-    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject));
+    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject)*2, &m_wvpPerObject, sizeof(m_wvpPerObject));
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
     // store cube2's world matrix
     DirectX::XMStoreFloat4x4(&pyramid2WorldMat, worldMat);
@@ -396,7 +459,13 @@ void VoyagerEngine::LoadAssets()
     // Create the vertex and index buffers.
     {
         CreateSphere();
+        CreateSphere();
+        CreateSphere();
         suzanneMesh.CreateFromFile("ship_v1_normals_test.obj");
+        EngineObject engineObject = EngineObject(engineObjects.size(), suzanneMesh);
+        engineObject.position.y = 2.0;
+        engineObject.position.x = -1.0;
+        engineObjects.push_back(engineObject);
 
         // Load the texture
         {
@@ -531,18 +600,25 @@ void VoyagerEngine::PopulateCommandList()
 
     //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
+    
     // draw ball
-    ballMesh.InsertBufferBind(m_commandList);
-    // set the root constant at index 0 for mvp matix
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
-    ballMesh.InsertDrawIndexed(m_commandList);
+    int idx = 0;
+    for (int i = 0; i < engineObjects.size(); i++) {
+        engineObjects[i].mesh.InsertBufferBind(m_commandList);
+        // set the root constant at index 0 for mvp matix
+        m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * engineObjects[i].idx);
+        engineObjects[i].mesh.InsertDrawIndexed(m_commandList);
+    }
 
+   
     // draw suzanne
     //m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
     //m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
-    suzanneMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
-    suzanneMesh.InsertDrawIndexed(m_commandList);
+    
+    
+    //suzanneMesh.InsertBufferBind(m_commandList);
+    //m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * planets.size());
+    //suzanneMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -581,11 +657,36 @@ void VoyagerEngine::CreateSphere()
 {
     std::vector<Vertex> triangleVertices;
     std::vector<DWORD> triangleIndices;
-    GenerateSphereVertices(triangleVertices, triangleIndices);
-    ballMesh = Mesh(triangleVertices, triangleIndices);
+    
+
+
+
+    ////
+    ConfigurationGenerator generator;
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const int charsetSize = sizeof(charset) - 1;
+
+    std::string randomString;
+    randomString.reserve(10);
+    for (int i = 0; i < 10; ++i) {
+        randomString += charset[rand() % charsetSize];
+    }
+    PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(randomString, 15.0f, DirectX::XMFLOAT3(0, 0, 0));
+    generator.PrintPlanetConfiguration(planetDescripton);
+    ////
+
+    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton);
+    EngineObject engineObject = EngineObject(engineObjects.size(), Mesh(triangleVertices, triangleIndices));
+    engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
+    DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&pyramid1Position);
+    DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
+    DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
+    DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
+
+    engineObjects.push_back(engineObject);
 }
 
-void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
+void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton)
 {
     int resolution = 128;
 
@@ -634,24 +735,11 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     //std::mt19937 generator(std::random_device{}());
 
 
-    ConfigurationGenerator generator;
-
-
-    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    const int charsetSize = sizeof(charset) - 1;
-
-    std::string randomString;
-    randomString.reserve(10);
-
-    for (int i = 0; i < 10; ++i) {
-        randomString += charset[rand() % charsetSize];
-    }
+    
 
     Noise noise;
 
-    PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(randomString, 15.0f, DirectX::XMFLOAT3(0, 0, 0));
-    generator.PrintPlanetConfiguration(planetDescripton);
-
+ 
 
 
     for (int i = 0; i < 6*resolution* resolution; i++) {

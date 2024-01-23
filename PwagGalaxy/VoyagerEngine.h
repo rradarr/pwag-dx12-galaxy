@@ -5,6 +5,8 @@
 #include "Mesh.h"
 #include "Noise.h"
 #include "RenderingComponents.h"
+#include "ConfigurationGenerator.h"
+#include "EngineObject.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -70,9 +72,12 @@ private:
     LitMaterial materialLit;
 
     Mesh suzanneMesh;
-    Mesh ballMesh;
+    std::vector<Mesh> planets;
 
     Texture sampleTexture;
+
+    std::vector<EngineObject> engineObjects;
+
 
     // Constant Descriptor Table resources.
     //ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
@@ -118,7 +123,7 @@ private:
 
     void SetLightPosition();
     void CreateSphere();
-    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices);
+    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton);
 
     void OnEarlyUpdate();
 
