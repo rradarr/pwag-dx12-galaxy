@@ -24,10 +24,15 @@ VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring w
     m_viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, static_cast<float>(windowWidth), static_cast<float>(windowHeight) };
     m_scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(windowWidth), static_cast<LONG>(windowHeight) };
     m_rtvDescriptorSize = 0;
+    hasFocus = true;
+    windowCenter = { static_cast<float>(windowWidth) / 2.f, static_cast<float>(windowHeight) / 2.f };
+    keyboradMovementInput = { 0, 0, 0 };
 }
 
-void VoyagerEngine::OnInit()
+void VoyagerEngine::OnInit(HWND windowHandle)
 {
+    this->windowHandle = windowHandle;
+
     LoadPipeline();
     LoadAssets();
     LoadScene();
@@ -37,6 +42,11 @@ void VoyagerEngine::OnInit()
 void VoyagerEngine::OnUpdate()
 {
     OnEarlyUpdate();
+
+    DirectX::XMFLOAT2 delta;
+    DirectX::XMStoreFloat2(&delta, mouseDelta);
+    m_mainCamera.UpdateCamera(delta, keyboradMovementInput);
+    keyboradMovementInput = { 0, 0, 0 };
 
     Timer* timer = Timer::GetInstance();
     double deltaTime = timer->GetDeltaTime();
@@ -190,12 +200,49 @@ void VoyagerEngine::OnDestroy()
 
 void VoyagerEngine::OnKeyDown(UINT8 keyCode)
 {
-    std::cout << "Engine detected key down." << std::endl;
+    switch (keyCode) {
+    case 0x57: // W
+        keyboradMovementInput.z = 1;
+        break;
+    case 0x53: // S
+        keyboradMovementInput.z = -1;
+        break;
+    case 0x44: // D
+        keyboradMovementInput.x = 1;
+        break;
+    case 0x41: // A
+        keyboradMovementInput.x = -1;
+        break;
+    case 0x20: // SPACE
+        keyboradMovementInput.y = 1;
+        break;
+    case 0x11: // CTRL
+        keyboradMovementInput.y = -1;
+        break;
+    };
 }
 
 void VoyagerEngine::OnKeyUp(UINT8 keyCode)
 {
     std::cout << "Engine detected key up." << std::endl;
+}
+
+void VoyagerEngine::OnMouseMove(int mouseX, int mouseY)
+{
+    if (hasFocus)
+    {
+        mousePos = { static_cast<float>(mouseX), static_cast<float>(mouseY) };
+    }
+}
+
+void VoyagerEngine::OnGotFocus()
+{
+    hasFocus = true;
+}
+
+void VoyagerEngine::OnLostFocus()
+{
+    hasFocus = false;
 }
 
 void VoyagerEngine::LoadPipeline()
@@ -766,5 +813,21 @@ void VoyagerEngine::OnEarlyUpdate()
     {
         timeTillFpsDisplayUpdate = 0.0;
         std::cout << timer->GetFps() << "\r";
+    }
+
+    GetMouseDelta();
+}
+
+void VoyagerEngine::GetMouseDelta()
+{
+    mouseDelta = DirectX::XMVectorSubtract(DirectX::XMLoadFloat2(&mousePos), DirectX::XMLoadFloat2(&windowCenter));
+    DirectX::XMFLOAT2 delta;
+    DirectX::XMStoreFloat2(&delta, mouseDelta);
+
+    if (hasFocus)
+    {
+        POINT center = { windowCenter.x, windowCenter.y };
+        ClientToScreen(windowHandle, &center);
+        SetCursorPos(center.x, center.y);
     }
 }
