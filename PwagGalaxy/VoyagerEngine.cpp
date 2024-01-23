@@ -84,6 +84,11 @@ void VoyagerEngine::OnUpdate()
 
     // store cube1's world matrix
     DirectX::XMStoreFloat4x4(&pyramid1WorldMat, worldMat);
+    // Store the world matrix (for lighting).
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
+    // Store the view matrix (for lighting).
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
 
     // update constant buffer for cube1
     // create the wvp matrix and store in constant buffer
@@ -93,17 +98,18 @@ void VoyagerEngine::OnUpdate()
     DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
     // copy our ConstantBuffer instance to the mapped constant buffer resource
-    memcpy(cbvGPUAddress[m_frameBufferIndex], &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat));
+    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex], &m_wvpPerObject, sizeof(m_wvpPerObject));
 
     // now do cube2's world matrix
     // create rotation matrices for piramid2
     rotXMat = DirectX::XMMatrixRotationX(0.f);
-    rotYMat = DirectX::XMMatrixRotationY(0.0001f);
+    rotYMat = DirectX::XMMatrixRotationY(0.01f);
     rotZMat = DirectX::XMMatrixRotationZ(0.f);
 
     // add rotation to cube2's rotation matrix and store it
     rotMat = rotZMat * (DirectX::XMLoadFloat4x4(&pyramid2RotMat) * (rotXMat * rotYMat));
     DirectX::XMStoreFloat4x4(&pyramid2RotMat, rotMat);
+
 
     // create translation matrix for cube 2 to offset it from cube 1 (its position relative to cube1
     DirectX::XMMATRIX translationOffsetMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&pyramid2PositionOffset));
@@ -118,12 +124,18 @@ void VoyagerEngine::OnUpdate()
     // finally we move it to cube 1's position, which will cause it to rotate around cube 1
     worldMat = scaleMat * translationOffsetMat * rotMat * translationMat;
 
+    // Store the world matrix (for lighting).
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
+    // Store the view matrix (for lighting).
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+
     wvpMat = DirectX::XMLoadFloat4x4(&pyramid2WorldMat) * viewMat * projMat; // create wvp matrix
     transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
 
     // copy our ConstantBuffer instance to the mapped constant buffer resource
-    memcpy(cbvGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat));
+    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject));
 
     // store cube2's world matrix
     DirectX::XMStoreFloat4x4(&pyramid2WorldMat, worldMat);
@@ -347,20 +359,38 @@ void VoyagerEngine::LoadAssets()
         {
             // create resource for cube 1
             // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
-            buffMng.AllocateBuffer(m_constantRootDescriptorBuffers[i], 1024 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-            m_constantRootDescriptorBuffers[i]->SetName(L"Root Constant Buffer Upload Resource Heap");
+            buffMng.AllocateBuffer(m_WVPConstantBuffers[i], 1024 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+            m_WVPConstantBuffers[i]->SetName(L"Root Constant Buffer Upload Resource Heap");
 
             ZeroMemory(&m_wvpPerObject, sizeof(m_wvpPerObject));
 
             CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (so end is less than or equal to begin)
             // map the resource heap to get a gpu virtual address to the beginning of the heap
-            ThrowIfFailed(m_constantRootDescriptorBuffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i])));
+            ThrowIfFailed(m_WVPConstantBuffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&m_WVPConstantBuffersGPUAddress[i])));
 
             // Because of the constant read alignment requirements, constant buffer views must be 256 bit aligned. Our buffers are smaller than 256 bits,
             // so we need to add spacing between the two buffers, so that the second buffer starts at 256 bits from the beginning of the resource heap.
-            memcpy(cbvGPUAddress[i], &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat)); // cube1's constant buffer data
-            memcpy(cbvGPUAddress[i] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject.wvpMat)); // cube2's constant buffer data
+            memcpy(m_WVPConstantBuffersGPUAddress[i], &m_wvpPerObject, sizeof(m_wvpPerObject)); // cube1's constant buffer data
+            memcpy(m_WVPConstantBuffersGPUAddress[i] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject)); // cube2's constant buffer data
         }
+    }
+
+    // Create the buffer for lighting parameters.
+    {
+        BufferMemoryManager buffMng;
+
+        // Size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers.
+        buffMng.AllocateBuffer(m_LigtParamConstantBuffer, 1024 * 64, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+        m_LigtParamConstantBuffer->SetName(L"Root Constant Buffer Upload Resource Heap (lighting params)");
+
+        ZeroMemory(&lightParams, sizeof(lightParams));
+
+        CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (so end is less than or equal to begin)
+        // Map the resource heap to get a gpu virtual address to the beginning of the heap.
+        ThrowIfFailed(m_LigtParamConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_LightParamConstantBufferGPUAddres)));
+
+        // Because of the constant read alignment requirements, constant buffer views must be 256 bit aligned.
+        memcpy(m_LightParamConstantBufferGPUAddres, &lightParams, sizeof(lightParams.lightPosition));
     }
 
     // Create the vertex and index buffers.
@@ -402,6 +432,7 @@ void VoyagerEngine::LoadAssets()
     }
 
     LoadMaterials();
+    SetLightPosition();
 
     std::cout << "Assets loaded." << std::endl;
 }
@@ -419,6 +450,9 @@ void VoyagerEngine::LoadMaterials()
 
     materialNormalsDebug.SetShaders("VertexShader_normalsDebug.hlsl", "PixelShader_normalsDebug.hlsl");
     materialNormalsDebug.CreateMaterial();
+
+    materialLit.SetShaders("VertexShader_lit.hlsl", "PixelShader_lit.hlsl");
+    materialLit.CreateMaterial();
 }
 
 void VoyagerEngine::LoadScene()
@@ -459,7 +493,7 @@ void VoyagerEngine::PopulateCommandList()
     // However, when ExecuteCommandList() is called on a particular command
     // list, that command list can then be reset at any time and must be before
     // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), materialNormalsDebug.GetPSO().Get()));
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator[m_frameBufferIndex].Get(), materialLit.GetPSO().Get()));
 
     // Indicate that the back buffer will be used as a render target.
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -471,7 +505,7 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Set necessary state.
-    m_commandList->SetGraphicsRootSignature(materialNormalsDebug.GetRootSignature().Get());
+    m_commandList->SetGraphicsRootSignature(materialLit.GetRootSignature().Get());
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -484,7 +518,10 @@ void VoyagerEngine::PopulateCommandList()
     // set constant buffer descriptor table heap and srv descriptor table heap
     ID3D12DescriptorHeap* descriptorHeaps[] = { ShaderResourceHeapManager::GetHeap().Get() };
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-    // set the root descriptor table 0 to the constant buffer descriptor heap
+    // Set the root table at index 2 to the texture.
+    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
+    m_commandList->SetGraphicsRootConstantBufferView(1, m_LigtParamConstantBuffer->GetGPUVirtualAddress());
     //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
 
@@ -492,18 +529,19 @@ void VoyagerEngine::PopulateCommandList()
     //descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
 
-    CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
+    //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
     // draw ball
     ballMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
+    // set the root constant at index 0 for mvp matix
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
     ballMesh.InsertDrawIndexed(m_commandList);
 
     // draw suzanne
     //m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
     //m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
     suzanneMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
     suzanneMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
@@ -528,6 +566,15 @@ void VoyagerEngine::WaitForPreviousFrame()
         ThrowIfFailed(m_fence[m_frameBufferIndex]->SetEventOnCompletion(m_fenceValue[m_frameBufferIndex], m_fenceEvent));
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
+}
+
+void VoyagerEngine::SetLightPosition()
+{
+    lightParams.lightPosition = { 2, 1, -3 };
+
+    // copy our ConstantBuffer instance to the mapped constant buffer resource
+    memcpy(m_LightParamConstantBufferGPUAddres, &lightParams.lightPosition, sizeof(lightParams.lightPosition));
+
 }
 
 void VoyagerEngine::CreateSphere()

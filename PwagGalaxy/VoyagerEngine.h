@@ -4,11 +4,7 @@
 #include "Camera.h"
 #include "Mesh.h"
 #include "Noise.h"
-#include "Texture.h"
-#include "Material.h"
-#include "DefaultTexturedMaterial.h"
-#include "WireframeMaterial.h"
-#include "NormalsDebugMaterial.h"
+#include "RenderingComponents.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -34,8 +30,18 @@ private:
     };
     // this is the structure of the world, view, projection constant buffer (passed as a root descriptor).
     struct wvpConstantBuffer {
-        union {
+        //union {
             DirectX::XMFLOAT4X4 wvpMat;
+            DirectX::XMFLOAT4X4 worldMat;
+            DirectX::XMFLOAT4X4 viewMat;
+            DirectX::XMFLOAT4X4 projectionMat;
+            // space for one more?
+            //BYTE padding[256]; // Constant buffers must be 256-byte aligned which has to do with constant reads on the GPU.
+        //};
+    };
+    struct lightParamsConstantBuffer {
+        union {
+            DirectX::XMFLOAT3 lightPosition;
             BYTE padding[256]; // Constant buffers must be 256-byte aligned which has to do with constant reads on the GPU.
         };
     };
@@ -61,6 +67,7 @@ private:
     Material materialNoTex;
     WireframeMaterial materialWireframe;
     NormalsDebugMaterial materialNormalsDebug;
+    LitMaterial materialLit;
 
     Mesh suzanneMesh;
     Mesh ballMesh;
@@ -73,13 +80,19 @@ private:
     UINT m_cbvPerFrameSize;
     ColorConstantBuffer m_cbData;
     UINT8* cbColorMultiplierGPUAddress[mc_frameBufferCount]; // Pointer to the memory location we get when we map our constant buffer.
-    // Constant Root Descriptors resources.
-    ComPtr<ID3D12Resource> m_constantRootDescriptorBuffers[mc_frameBufferCount];
-    UINT8* cbvGPUAddress[mc_frameBufferCount];
+
+    // Constant Root Buffers resources (for WVP matrices).
+    ComPtr<ID3D12Resource> m_WVPConstantBuffers[mc_frameBufferCount];
+    UINT8* m_WVPConstantBuffersGPUAddress[mc_frameBufferCount];
+
+    // Constant Root Buffer resources (for lighting parameters).
+    ComPtr<ID3D12Resource> m_LigtParamConstantBuffer;
+    UINT8* m_LightParamConstantBufferGPUAddres;
 
     // Scene objects
     Camera m_mainCamera;
     wvpConstantBuffer m_wvpPerObject;
+    lightParamsConstantBuffer lightParams;
 
     DirectX::XMFLOAT4X4 pyramid1WorldMat; // our first cubes world matrix (transformation matrix)
     DirectX::XMFLOAT4X4 pyramid1RotMat; // this will keep track of our rotation for the first cube
@@ -103,9 +116,11 @@ private:
     void PopulateCommandList();
     void WaitForPreviousFrame();
 
+    void SetLightPosition();
     void CreateSphere();
     void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices);
 
     void OnEarlyUpdate();
+
 };
 

@@ -94,7 +94,7 @@ void Mesh::CreateFromFile(const std::string fileName)
 void Mesh::InsertDrawIndexed(ComPtr<ID3D12GraphicsCommandList> commandList)
 {
     // Should the root descriptor he here too? -> possibly should be level up, in some DrawableObject class
-    //commandList->SetGraphicsRootConstantBufferView(1, m_constantRootDescriptorBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
+    //commandList->SetGraphicsRootConstantBufferView(1, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
     commandList->DrawIndexedInstanced(indexCount, 1, 0, 0, 0);
 }
 
