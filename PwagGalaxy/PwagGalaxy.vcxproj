@@ -190,7 +190,6 @@
     <ClInclude Include="Noise.h" />
     <ClInclude Include="RenderingComponents.h" />
     <ClInclude Include="PlanetBuilder.h" />
-    <ClInclude Include="resource.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Texture.h" />
