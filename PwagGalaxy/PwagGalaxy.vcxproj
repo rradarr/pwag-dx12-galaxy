@@ -150,6 +150,7 @@
     <ClCompile Include="AssetConfigReader.cpp" />
     <ClCompile Include="BufferMemoryManager.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="ConfigurationGenerator.cpp" />
     <ClCompile Include="ConsoleHelper.cpp" />
     <ClCompile Include="DefaultTexturedMaterial.cpp" />
     <ClCompile Include="DXContext.cpp" />
@@ -160,6 +161,7 @@
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="Noise.cpp" />
+    <ClCompile Include="PlanetBuilder.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="ShaderResourceHeapManager.cpp" />
     <ClCompile Include="stdafx.cpp" />
@@ -175,6 +177,7 @@
     <ClInclude Include="AssetConfigReader.h" />
     <ClInclude Include="BufferMemoryManager.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="ConfigurationGenerator.h" />
     <ClInclude Include="ConsoleHelper.h" />
     <ClInclude Include="DefaultTexturedMaterial.h" />
     <ClInclude Include="DXContext.h" />
@@ -186,6 +189,8 @@
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Noise.h" />
     <ClInclude Include="RenderingComponents.h" />
+    <ClInclude Include="PlanetBuilder.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Texture.h" />
