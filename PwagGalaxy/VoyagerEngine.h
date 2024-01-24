@@ -5,6 +5,8 @@
 #include "Mesh.h"
 #include "Noise.h"
 #include "RenderingComponents.h"
+#include "ConfigurationGenerator.h"
+#include "EngineObject.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -73,9 +75,12 @@ private:
     LitMaterial materialLit;
 
     Mesh suzanneMesh;
-    Mesh ballMesh;
+    std::vector<Mesh> planets;
 
     Texture sampleTexture;
+
+    std::vector<EngineObject> engineObjects;
+
 
     // Constant Descriptor Table resources.
     //ComPtr<ID3D12DescriptorHeap> m_constantDescriptorTableHeaps[mc_frameBufferCount];
@@ -127,10 +132,17 @@ private:
     void WaitForPreviousFrame();
 
     void SetLightPosition();
-    void CreateSphere();
-    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices);
+    void CreateSphere(PlanetConfiguration planetDescripton, float orbit, bool sun = false, bool asteroid = false);
+    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun = false, bool asteroid = false);
+    float EstimateNewOrbit(PlanetConfiguration planetDescription);
 
     void OnEarlyUpdate();
     void GetMouseDelta();
+
+    DirectX::XMFLOAT3 EstimateOrbitVector(const PlanetConfiguration& planetDescription);
+    DirectX::XMFLOAT3 normalize(DirectX::XMFLOAT3 vec);
+    DirectX::XMFLOAT3 scale(DirectX::XMFLOAT3 vec, float scale);
+
+
 };
 
