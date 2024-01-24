@@ -81,7 +81,6 @@ private:
     std::vector<Mesh> planets;
 
     Texture sampleTexture;
-    Texture anotherTexture;
 
     std::vector<EngineObject> engineObjects;
 

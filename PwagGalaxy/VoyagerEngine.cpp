@@ -43,6 +43,9 @@ void VoyagerEngine::OnInit(HWND windowHandle)
 
 void VoyagerEngine::OnUpdate()
 {
+    m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+    WaitForPreviousFrame();
+
     OnEarlyUpdate();
 
     DirectX::XMFLOAT2 delta;
@@ -52,6 +55,9 @@ void VoyagerEngine::OnUpdate()
 
     Timer* timer = Timer::GetInstance();
     double deltaTime = timer->GetDeltaTime();
+    // Store the view matrix (for lighting).
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
 
     // update app logic, such as moving the camera or figuring out what objects are in view
     static float rIncrement = 0.2f * deltaTime;
@@ -94,36 +100,6 @@ void VoyagerEngine::OnUpdate()
 
         DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * engineObject.delta_rotXMat * engineObject.delta_rotYMat * engineObject.delta_rotZMat;
 
-        //rotMat = engineObject.delta_rotZMat * (DirectX::XMLoadFloat4x4(&engineObject.rotation) * (engineObject.delta_rotXMat * engineObject.delta_rotYMat));
-        //if (engineObject.idx == 0) {
-
-        //    for (int i = 0; i < 4; i++) {
-        //        for (int j = 0; j < 4; j++) {
-        //            std::cout << engineObject.rotation(i, j) << " | ";
-        //        }
-        //        std::cout << std::endl;
-        //    }
-        //    std::cout << std::endl;  f
-        //}
-
-    //// update constant buffer for cube1
-    //// create the wvp matrix and store in constant buffer
-    //DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat); // load view matrix
-    //DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&m_mainCamera.projMat); // load projection matrix
-    //DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&pyramid1WorldMat) * viewMat * projMat; // create wvp matrix
-    //DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
-    //DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
-    //// copy our ConstantBuffer instance to the mapped constant buffer resource
-    //memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex], &m_wvpPerObject, sizeof(m_wvpPerObject));
-
-    //// now do cube2's world matrix
-    //// create rotation matrices for piramid2
-    //rotXMat = DirectX::XMMatrixRotationX(0.f * deltaTime);
-    //rotYMat = DirectX::XMMatrixRotationY(0.3f * deltaTime);
-    //rotZMat = DirectX::XMMatrixRotationZ(0.f * deltaTime);
-
-
-
         // create translation matrix for cube 1 from cube 1's position vector
         DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
 
@@ -151,8 +127,8 @@ void VoyagerEngine::OnUpdate()
         DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
 
         // Store the view matrix (for lighting).
-        DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
-        DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+        /*DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));*/
 
         // update constant buffer for cube1
         // create the wvp matrix and store in constant buffer
@@ -182,8 +158,8 @@ void VoyagerEngine::OnUpdate()
     DirectX::XMStoreFloat4x4(&ship.worldMat, worldMat);
 
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+    /*DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));*/
     DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(worldMat * viewMat * projMat); // must transpose wvp matrix for the gpu
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
 
@@ -192,8 +168,8 @@ void VoyagerEngine::OnUpdate()
 
 void VoyagerEngine::OnRender()
 {
-    m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-    WaitForPreviousFrame();
+    //m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+    //WaitForPreviousFrame();
 
     // Record all the commands we need to render the scene into the command list.
     PopulateCommandList();
@@ -572,7 +548,7 @@ void VoyagerEngine::LoadAssets()
 
 
         shipMesh.CreateFromFile("ship_v1_normals_test.obj");
-        ship = EngineObject(100, shipMesh);
+        ship = EngineObject(engineObjects.size(), shipMesh);
         //EngineObject engineObject = EngineObject(engineObjects.size(), shipMesh);
         ship.position = DirectX::XMFLOAT4(2.f, 0.0f, 0.0f, 0.0f);
         ship.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
