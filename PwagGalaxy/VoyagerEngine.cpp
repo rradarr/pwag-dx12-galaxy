@@ -224,7 +224,7 @@ void VoyagerEngine::OnKeyDown(UINT8 keyCode)
 
 void VoyagerEngine::OnKeyUp(UINT8 keyCode)
 {
-    std::cout << "Engine detected key up." << std::endl;
+
 }
 
 void VoyagerEngine::OnMouseMove(int mouseX, int mouseY)
