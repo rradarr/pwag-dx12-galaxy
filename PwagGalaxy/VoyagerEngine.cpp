@@ -690,6 +690,12 @@ DirectX::XMFLOAT3 VoyagerEngine::scale(DirectX::XMFLOAT3 vec, float scale) {
 
 
 
+float randFloat() {
+    return static_cast<float>(rand()) / RAND_MAX;
+}
+
+
+
 void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id)
 {
     int resolution = 128;
@@ -797,24 +803,41 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 
 
     std::vector<std::pair<float, DirectX::XMFLOAT4>> gradient;
-    gradient.push_back({ 0.2,  DirectX::XMFLOAT4(0, 0, 1, 1) });
-    gradient.push_back({ 0.3,  DirectX::XMFLOAT4(1, 1, 0, 1) });
-    gradient.push_back({ 0.5,  DirectX::XMFLOAT4(0, 1, 0, 1) });
-    gradient.push_back({ 0.8,  DirectX::XMFLOAT4(0.5, 0.25, 0, 1) });
-    gradient.push_back({ 1,  DirectX::XMFLOAT4(1, 1, 1, 1) });
 
+    if (id == 2) {
 
+    
+        gradient.push_back({ 0.2,  DirectX::XMFLOAT4(0, 0, 1, 1) });
+        gradient.push_back({ 0.3,  DirectX::XMFLOAT4(1, 1, 0, 1) });
+        gradient.push_back({ 0.5,  DirectX::XMFLOAT4(0, 1, 0, 1) });
+        gradient.push_back({ 0.8,  DirectX::XMFLOAT4(0.5, 0.25, 0, 1) });
+        gradient.push_back({ 1,  DirectX::XMFLOAT4(1, 1, 1, 1) });
+
+    } else {
+
+        gradient.push_back({ 0.2,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 0.3,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 0.5,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 0.8,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 1,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+    }
     
     for (int i = 0; i < 6 * resolution * resolution; i++) {
         DirectX::XMVECTOR positionVector = DirectX::XMLoadFloat3(&triangleVertices[i].position);
         float elevation = DirectX::XMVectorGetX(DirectX::XMVector3Length(positionVector));
         float normalizedElevation = (elevation - minElevation) / (maxElevation - minElevation);
      
+        DirectX::XMFLOAT4 prevColor = gradient[0].second;
+
         for (std::pair<float, DirectX::XMFLOAT4> color : gradient) {
+            
             if (color.first > normalizedElevation) {
+
+
                 triangleVertices[i].color = color.second;
                 break;
             }
+            prevColor = color.second;
         }
 
 
