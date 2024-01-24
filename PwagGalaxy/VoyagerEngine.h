@@ -74,11 +74,14 @@ private:
     NormalsDebugMaterial materialNormalsDebug;
     LitMaterial materialLit;
 
+    bool useWireframe = false;
+
     Mesh shipMesh;
     EngineObject ship;
     std::vector<Mesh> planets;
 
     Texture sampleTexture;
+    Texture anotherTexture;
 
     std::vector<EngineObject> engineObjects;
 

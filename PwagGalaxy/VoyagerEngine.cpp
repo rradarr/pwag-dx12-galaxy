@@ -184,6 +184,8 @@ void VoyagerEngine::OnUpdate()
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
     DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+    DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(worldMat * viewMat * projMat); // must transpose wvp matrix for the gpu
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
 
     memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject) * ship.idx, &m_wvpPerObject, sizeof(m_wvpPerObject));
 }
@@ -275,6 +277,8 @@ void VoyagerEngine::OnKeyUp(UINT8 keyCode)
     case 0x11: // CTRL
         keyboradMovementInput.y = keyboradMovementInput.y == -1 ? 0 : keyboradMovementInput.y;
         break;
+    case 0x58: // X
+        useWireframe = !useWireframe;
     };
 }
 
@@ -586,6 +590,7 @@ void VoyagerEngine::LoadAssets()
         // Load the texture
         {
             sampleTexture.CreateFromFile("Sci_fi_Metal_Panel_006_basecolor.jpg"); // Create the texture from file.
+            //anotherTexture.CreateFromFile("texture.png");
         }
 
         // Create the depth/stencil heap and buffer.
@@ -700,6 +705,11 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
+    if (useWireframe) {
+        m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
+        m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
+    }
+
     // Record commands.
     const float clearColor[] = { 0.005f, 0.005f, 0.005f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
@@ -711,8 +721,10 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
     // Set the root table at index 2 to the texture.
     CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_LigtParamConstantBuffer->GetGPUVirtualAddress());
+    if (!useWireframe) {
+        m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
+        m_commandList->SetGraphicsRootConstantBufferView(1, m_LigtParamConstantBuffer->GetGPUVirtualAddress());
+    }
     //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
 
