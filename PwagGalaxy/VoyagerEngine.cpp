@@ -13,8 +13,9 @@
 
 #include "Noise.h"
 #include "ConfigurationGenerator.h"
+#include "EngineObject.h"
 #include <random>
-
+#include <limits>
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -65,82 +66,71 @@ void VoyagerEngine::OnUpdate()
 
     // copy our ConstantBuffer instance to the mapped constant buffer resource
     memcpy(cbColorMultiplierGPUAddress[m_frameBufferIndex], &m_cbData, sizeof(m_cbData));
-
-    // Update object positions.
-    // create rotation matrices
-    DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f);
-    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.0002f);
-    DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f);
-
-    // add rotation to cube1's rotation matrix and store it
-    DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&pyramid1RotMat) * rotXMat * rotYMat * rotZMat;
-    DirectX::XMStoreFloat4x4(&pyramid1RotMat, rotMat);
-
-    // create translation matrix for cube 1 from cube 1's position vector
-    DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&pyramid1Position));
-
-    // create cube1's world matrix by first rotating the cube, then positioning the rotated cube
-    DirectX::XMMATRIX worldMat = rotMat * translationMat;
-
-    // store cube1's world matrix
-    DirectX::XMStoreFloat4x4(&pyramid1WorldMat, worldMat);
-    // Store the world matrix (for lighting).
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
-    // Store the view matrix (for lighting).
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
-
-    // update constant buffer for cube1
-    // create the wvp matrix and store in constant buffer
+   
     DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat); // load view matrix
     DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&m_mainCamera.projMat); // load projection matrix
-    DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&pyramid1WorldMat) * viewMat * projMat; // create wvp matrix
-    DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
-    // copy our ConstantBuffer instance to the mapped constant buffer resource
-    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex], &m_wvpPerObject, sizeof(m_wvpPerObject));
 
-    // now do cube2's world matrix
-    // create rotation matrices for piramid2
-    rotXMat = DirectX::XMMatrixRotationX(0.f);
-    rotYMat = DirectX::XMMatrixRotationY(0.01f);
-    rotZMat = DirectX::XMMatrixRotationZ(0.f);
+    for (EngineObject &engineObject : engineObjects) {
 
-    // add rotation to cube2's rotation matrix and store it
-    rotMat = rotZMat * (DirectX::XMLoadFloat4x4(&pyramid2RotMat) * (rotXMat * rotYMat));
-    DirectX::XMStoreFloat4x4(&pyramid2RotMat, rotMat);
+        DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * engineObject.delta_rotXMat * engineObject.delta_rotYMat * engineObject.delta_rotZMat;
+       
+        //rotMat = engineObject.delta_rotZMat * (DirectX::XMLoadFloat4x4(&engineObject.rotation) * (engineObject.delta_rotXMat * engineObject.delta_rotYMat));
+        //if (engineObject.idx == 0) {
+    
+        //    for (int i = 0; i < 4; i++) {
+        //        for (int j = 0; j < 4; j++) {
+        //            std::cout << engineObject.rotation(i, j) << " | ";
+        //        }
+        //        std::cout << std::endl;
+        //    }
+        //    std::cout << std::endl;  f
+        //}
+
+     
 
 
-    // create translation matrix for cube 2 to offset it from cube 1 (its position relative to cube1
-    DirectX::XMMATRIX translationOffsetMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&pyramid2PositionOffset));
 
-    // we want cube 2 to be half the size of cube 1, so we scale it by .5 in all dimensions
-    DirectX::XMMATRIX scaleMat = DirectX::XMMatrixScaling(0.5f, 0.5f, 0.5f);
+        // create translation matrix for cube 1 from cube 1's position vector
+        DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
 
-    // reuse worldMat.
-    // first we scale cube2. scaling happens relative to point 0,0,0, so you will almost always want to scale first
-    // then we translate it.
-    // then we rotate it. rotation always rotates around point 0,0,0
-    // finally we move it to cube 1's position, which will cause it to rotate around cube 1
-    worldMat = scaleMat * translationOffsetMat * rotMat * translationMat;
 
-    // Store the world matrix (for lighting).
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
-    // Store the view matrix (for lighting).
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
 
-    wvpMat = DirectX::XMLoadFloat4x4(&pyramid2WorldMat) * viewMat * projMat; // create wvp matrix
-    transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
-    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
+       if (engineObject.planetDesc){
+           // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
+            DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.velocity * engineObject.planetDescripton.orbitAngle);
+            rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * rotationMatrix;
 
-    // copy our ConstantBuffer instance to the mapped constant buffer resource
-    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject), &m_wvpPerObject, sizeof(m_wvpPerObject));
+       }
 
-    // store cube2's world matrix
-    DirectX::XMStoreFloat4x4(&pyramid2WorldMat, worldMat);
+       DirectX::XMStoreFloat4x4(&engineObject.rotation, rotMat);
 
-    //std::cout << "Engine updated." << std::endl;
+        // we want cube 2 to be half the size of cube 1, so we scale it by .5 in all dimensions
+
+        float scale = (engineObject.planetDesc) ? engineObject.planetDescripton.radius : 0.5f;
+        DirectX::XMMATRIX scaleMat =  DirectX::XMMatrixScaling(scale, scale, scale);
+
+        // create cube1's world matrix by first rotating the cube, then positioning the rotated cube
+        DirectX::XMMATRIX worldMat = scaleMat * translationMat *rotMat;
+        DirectX::XMStoreFloat4x4(&engineObject.worldMat, worldMat);
+        // store cube1's world matrix
+
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
+
+        // Store the view matrix (for lighting).
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+        
+        // update constant buffer for cube1
+        // create the wvp matrix and store in constant buffer
+       
+        DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&engineObject.worldMat) * viewMat * projMat; // create wvp matrix
+        DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
+        // copy our ConstantBuffer instance to the mapped constant buffer resource
+        memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject)* engineObject.idx, &m_wvpPerObject, sizeof(m_wvpPerObject));
+
+    }
+
 }
 
 void VoyagerEngine::OnRender()
@@ -395,8 +385,57 @@ void VoyagerEngine::LoadAssets()
 
     // Create the vertex and index buffers.
     {
-        CreateSphere();
+
+        ConfigurationGenerator generator;
+        const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        const int charsetSize = sizeof(charset) - 1;
+
+        std::string randomString;
+        randomString.reserve(10);
+        for (int i = 0; i < 10; ++i) {
+            randomString += charset[rand() % charsetSize];
+        }
+        
+
+        PlanetConfiguration solarDescriptor = generator.GeneratePlanetConfiguration("SUN", 0.0f, DirectX::XMFLOAT3(0, 0, 0));
+        solarDescriptor.orbitEmptyRange = 0.0f;
+        solarDescriptor.radius = 1.0f;
+        solarDescriptor.layers[0].baseRoughness = 0.5f;
+  
+        //solarDescriptor.layers[0].minValue = 0.1f;
+      
+        CreateSphere(solarDescriptor, 0.0f, true);
+
+
+
+        float orbit = solarDescriptor.radius;
+        randomString = generator.GenerateSeed(randomString);
+        for (int i = 1; i < 8; i++) {
+            std::string SID = randomString.substr(i * 8, 8);
+            std::cout << SID << std::endl;
+            PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(SID, orbit, DirectX::XMFLOAT3(0, 0, 0));
+            //generator.PrintPlanetConfiguration(planetDescripton);
+
+            CreateSphere(planetDescripton, orbit);
+            orbit = EstimateNewOrbit(planetDescripton);
+        }
+
+
+
         suzanneMesh.CreateFromFile("ship_v1_normals_test.obj");
+        EngineObject engineObject = EngineObject(engineObjects.size(), suzanneMesh);
+        engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
+        engineObject.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
+        engineObject.delta_rotYMat = DirectX::XMMatrixRotationY(0.002f);
+        engineObject.delta_rotZMat = DirectX::XMMatrixRotationZ(0.0f);
+
+
+        DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&engineObject.position);
+        DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
+        DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
+        DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
+
+        engineObjects.push_back(engineObject);
 
         // Load the texture
         {
@@ -436,6 +475,12 @@ void VoyagerEngine::LoadAssets()
 
     std::cout << "Assets loaded." << std::endl;
 }
+
+
+float VoyagerEngine::EstimateNewOrbit(PlanetConfiguration planetDescription) {
+    return planetDescription.orbit + planetDescription.orbitEmptyRange + planetDescription.radius;
+}
+
 
 void VoyagerEngine::LoadMaterials()
 {
@@ -531,18 +576,25 @@ void VoyagerEngine::PopulateCommandList()
 
     //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
+    
     // draw ball
-    ballMesh.InsertBufferBind(m_commandList);
-    // set the root constant at index 0 for mvp matix
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress());
-    ballMesh.InsertDrawIndexed(m_commandList);
+    int idx = 0;
+    for (int i = 0; i < engineObjects.size(); i++) {
+        engineObjects[i].mesh.InsertBufferBind(m_commandList);
+        // set the root constant at index 0 for mvp matix
+        m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * engineObjects[i].idx);
+        engineObjects[i].mesh.InsertDrawIndexed(m_commandList);
+    }
 
+   
     // draw suzanne
     //m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
     //m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
-    suzanneMesh.InsertBufferBind(m_commandList);
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer));
-    suzanneMesh.InsertDrawIndexed(m_commandList);
+    
+    
+    //suzanneMesh.InsertBufferBind(m_commandList);
+    //m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * planets.size());
+    //suzanneMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -577,22 +629,106 @@ void VoyagerEngine::SetLightPosition()
 
 }
 
-void VoyagerEngine::CreateSphere()
+void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orbit, bool sun)
 {
     std::vector<Vertex> triangleVertices;
     std::vector<DWORD> triangleIndices;
-    GenerateSphereVertices(triangleVertices, triangleIndices);
-    ballMesh = Mesh(triangleVertices, triangleIndices);
+    
+ 
+    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton, engineObjects.size(), sun);
+    EngineObject engineObject = EngineObject(engineObjects.size(), Mesh(triangleVertices, triangleIndices));
+    engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
+
+
+    DirectX::XMFLOAT3 estimatedOrbitVector = sun? DirectX::XMFLOAT3(0,0,0) : EstimateOrbitVector(planetDescripton);
+
+
+    engineObject.position = DirectX::XMFLOAT4(
+        planetDescripton.starPosition.x + estimatedOrbitVector.x,
+        planetDescripton.starPosition.y + estimatedOrbitVector.y,
+        planetDescripton.starPosition.z + estimatedOrbitVector.z,
+        1.0f);
+
+
+
+
+    DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&engineObject.position);
+    DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
+    DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
+
+    //planetDescripton.orbitInitialAngleRad; 
+    //planetDescripton.orbitAngle
+
+
+
+
+    //DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
+    engineObject.planetDescripton = planetDescripton;
+    engineObject.planetDesc = true;
+
+    DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.orbitInitialAngleRad);
+    DirectX::XMStoreFloat4x4(&engineObject.rotation, rotationMatrix);
+
+    engineObjects.push_back(engineObject);
 }
 
-void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices)
+
+
+
+
+
+ 
+
+DirectX::XMFLOAT3 VoyagerEngine::EstimateOrbitVector(const PlanetConfiguration& planetDescription) {
+
+    DirectX::XMFLOAT3 orbitAxis = normalize(planetDescription.orbitAxis);
+    DirectX::XMFLOAT3 AV = (planetDescription.orbitAxis.x == 0.0f && planetDescription.orbitAxis.z == 1.0f) ||
+        (planetDescription.orbitAxis.x == 0.0f && planetDescription.orbitAxis.z == -1.0f)
+        ? DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f)
+        : DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f);
+
+    DirectX::XMFLOAT3 AC;
+    AC.x = planetDescription.orbitAxis.y * AV.z - planetDescription.orbitAxis.z * AV.y;
+    AC.y = planetDescription.orbitAxis.z * AV.x - planetDescription.orbitAxis.x * AV.z;
+    AC.z = planetDescription.orbitAxis.x * AV.y - planetDescription.orbitAxis.y * AV.x;
+
+    DirectX::XMFLOAT3 orbitVector = scale(normalize(AC), planetDescription.orbit);
+    return orbitVector;
+
+}
+
+DirectX::XMFLOAT3 VoyagerEngine:: normalize(DirectX::XMFLOAT3 vec) {
+    float length = std::sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+    return DirectX::XMFLOAT3(vec.x / length, vec.y / length, vec.z / length);
+}
+
+
+DirectX::XMFLOAT3 VoyagerEngine::scale(DirectX::XMFLOAT3 vec, float scale) {
+    return DirectX::XMFLOAT3(vec.x * scale, vec.y * scale, vec.z * scale);
+}
+
+
+
+float randFloat() {
+    return static_cast<float>(rand()) / RAND_MAX;
+}
+
+
+
+void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun)
 {
-    int resolution = 128;
+    int resolution = 256;
+
+
+
 
     Vertex vert;
-    vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
+    vert.color = DirectX::XMFLOAT4(1, 1, 0, 1);
     vert.uvCoordinates = {0.f, 0.f};
     vert.normal = { 0.f, 0.f, 0.f };
+
+
+
 
     DirectX::XMVECTOR faces[] = {
         DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
@@ -634,57 +770,130 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     //std::mt19937 generator(std::random_device{}());
 
 
-    ConfigurationGenerator generator;
-
-
-    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    const int charsetSize = sizeof(charset) - 1;
-
-    std::string randomString;
-    randomString.reserve(10);
-
-    for (int i = 0; i < 10; ++i) {
-        randomString += charset[rand() % charsetSize];
-    }
-
-    Noise noise;
-
-    PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(randomString, 15.0f, DirectX::XMFLOAT3(0, 0, 0));
-    generator.PrintPlanetConfiguration(planetDescripton);
+    //if (!sun)
+    {
 
 
 
-    for (int i = 0; i < 6*resolution* resolution; i++) {
-
-        float noiseValue = 0.0f;
-        float amplitude = 1.0f;
-        float frequency = planetDescripton.layers[0].baseRoughness;
+        Noise noise(id);
 
 
-        for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
+        float minElevation = FLT_MAX;
+        float maxElevation = FLT_MIN;
 
-            DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
-                triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
-                triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
-                triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
-            );
-            float signal = noise.Evaluate(point);
 
-            noiseValue += amplitude * (signal +1.0f) * (0.5f);
-            frequency *= planetDescripton.layers[0].roughness;
-            amplitude *= planetDescripton.layers[0].persistance;
-        }
-        noiseValue = (0 > ( noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
-        noiseValue *= planetDescripton.layers[0].strength;
 
-        float planetRadius = 1.0f;
-        float elevation = planetRadius * (1 + noiseValue);
+        for (int i = 0; i < 6 * resolution * resolution; i++) {
+
+            float noiseValue = 0.0f;
+            float amplitude = 1.0f;
+            float frequency = planetDescripton.layers[0].baseRoughness;
+
+
+            for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
+
+                DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
+                    triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
+                    triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
+                    triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
+                );
+                float signal = noise.Evaluate(point);
+
+                noiseValue += amplitude * (signal + 1.0f) * (0.5f);
+                frequency *= planetDescripton.layers[0].roughness;
+                amplitude *= planetDescripton.layers[0].persistance;
+            }
+            noiseValue = (0 > (noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
+            noiseValue *= planetDescripton.layers[0].strength;
+
+            float planetRadius = 1.0f;
+            float elevation = planetRadius * (1 + noiseValue);
+            if (elevation > maxElevation) {
+                maxElevation = elevation;
+            }
+
+            if (elevation < minElevation) {
+                minElevation = elevation;
+            }
 
             triangleVertices[i].position.x *= elevation;
             triangleVertices[i].position.y *= elevation;
             triangleVertices[i].position.z *= elevation;
-        
+
+        }
+
+
+
+        std::vector<std::pair<float, DirectX::XMFLOAT4>> gradient;
+        if (sun) {
+            gradient.push_back({ 0.1,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
+            gradient.push_back({ 0.5,  DirectX::XMFLOAT4(1, 0.3, 0, 1) });
+            gradient.push_back({ 0.95,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
+            gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0, 0, 0, 1) });
+        }
+        else if (id == 2) {
+
+
+            gradient.push_back({ 0.2,  DirectX::XMFLOAT4(0, 0, 1, 1) });
+            gradient.push_back({ 0.3,  DirectX::XMFLOAT4(1, 1, 0, 1) });
+            gradient.push_back({ 0.5,  DirectX::XMFLOAT4(0, 1, 0, 1) });
+            gradient.push_back({ 0.8,  DirectX::XMFLOAT4(0.5, 0.25, 0, 1) });
+            gradient.push_back({ 1,  DirectX::XMFLOAT4(1, 1, 1, 1) });
+
+        }
+        else {
+
+            gradient.push_back({ 0.2,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+            gradient.push_back({ 0.3,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+            gradient.push_back({ 0.5,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+            gradient.push_back({ 0.8,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+            gradient.push_back({ 1,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        }
+
+        for (int i = 0; i < 6 * resolution * resolution; i++) {
+            DirectX::XMVECTOR positionVector = DirectX::XMLoadFloat3(&triangleVertices[i].position);
+            float elevation = DirectX::XMVectorGetX(DirectX::XMVector3Length(positionVector));
+            float normalizedElevation = (elevation - minElevation) / (maxElevation - minElevation);
+
+
+
+            for (int idx = 0; idx < gradient.size(); idx++) {
+                std::pair<float, DirectX::XMFLOAT4> color = gradient[idx];
+
+                std::pair<float, DirectX::XMFLOAT4> nextColor = (idx < gradient.size() - 1) ? gradient[idx + 1] : color;
+
+                if (color.first > normalizedElevation) {
+
+                    float distRange = nextColor.first - color.first;
+                    if (distRange > 0.0f) {
+                        float dist = normalizedElevation - color.first;
+                        float percentage = dist / distRange;
+                        DirectX::XMFLOAT4 gradientCol = DirectX::XMFLOAT4(
+                            color.second.x * (1.0f - percentage) + nextColor.second.x * percentage,
+                            color.second.y * (1.0f - percentage) + nextColor.second.y * percentage,
+                            color.second.z * (1.0f - percentage) + nextColor.second.z * percentage,
+                            1.0f
+                        );
+                        triangleVertices[i].color = gradientCol;
+                    }
+                    else {
+                        triangleVertices[i].color = color.second;
+                    }
+
+
+                    break;
+                }
+
+            }
+
+
+
+        }
+
     }
+
+
+
 
     // Indexes
     triangleIndices = std::vector<DWORD>{ };
