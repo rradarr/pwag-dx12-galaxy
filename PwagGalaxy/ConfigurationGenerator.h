@@ -45,7 +45,7 @@ struct PlanetSettings
     PlanetOrbitSettings orbitDescriptor;
     float probability = 0.2f;
     MinMaxRange radius = { 0.1f, 0.5f };
-    MinMaxRange velocity = { 0.1f, 0.5f };
+    MinMaxRange velocity = { 0.001f, 0.005f };
     MinMaxRangeInt numberOfLayers = { 2, 4 };
 };
 

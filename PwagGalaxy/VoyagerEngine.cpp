@@ -105,7 +105,7 @@ void VoyagerEngine::OnUpdate()
        if (engineObject.planetDesc){
            // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
             DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.velocity);
- 
+            rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * rotationMatrix;
 
        }
 
