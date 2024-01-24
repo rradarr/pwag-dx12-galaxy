@@ -72,13 +72,6 @@ void VoyagerEngine::OnUpdate()
 
     for (EngineObject &engineObject : engineObjects) {
 
-        
-        engineObject.delta_rotXMat = DirectX::XMMatrixRotationX(0.00f);
-        engineObject.delta_rotYMat = DirectX::XMMatrixRotationY(0.002f);
-        engineObject.delta_rotZMat = DirectX::XMMatrixRotationZ(0.00f);
-
-
-
         DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * engineObject.delta_rotXMat * engineObject.delta_rotYMat * engineObject.delta_rotZMat;
        
         //rotMat = engineObject.delta_rotZMat * (DirectX::XMLoadFloat4x4(&engineObject.rotation) * (engineObject.delta_rotXMat * engineObject.delta_rotYMat));
@@ -90,7 +83,7 @@ void VoyagerEngine::OnUpdate()
         //        }
         //        std::cout << std::endl;
         //    }
-        //    std::cout << std::endl;
+        //    std::cout << std::endl;  f
         //}
 
      
@@ -104,7 +97,7 @@ void VoyagerEngine::OnUpdate()
 
        if (engineObject.planetDesc){
            // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
-            DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.velocity);
+            DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.velocity * engineObject.planetDescripton.orbitAngle);
             rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * rotationMatrix;
 
        }
@@ -410,7 +403,7 @@ void VoyagerEngine::LoadAssets()
             std::string SID = randomString.substr(i * 8, 8);
             std::cout << SID << std::endl;
             PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(SID, orbit, DirectX::XMFLOAT3(0, 0, 0));
-            generator.PrintPlanetConfiguration(planetDescripton);
+            //generator.PrintPlanetConfiguration(planetDescripton);
 
             CreateSphere(planetDescripton, orbit);
             orbit = EstimateNewOrbit(planetDescripton);
@@ -422,7 +415,7 @@ void VoyagerEngine::LoadAssets()
         EngineObject engineObject = EngineObject(engineObjects.size(), suzanneMesh);
         engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
         engineObject.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
-        engineObject.delta_rotYMat = DirectX::XMMatrixRotationY(0.2f);
+        engineObject.delta_rotYMat = DirectX::XMMatrixRotationY(0.002f);
         engineObject.delta_rotZMat = DirectX::XMMatrixRotationZ(0.0f);
 
 
@@ -631,7 +624,7 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
     std::vector<DWORD> triangleIndices;
     
  
-    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton);
+    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton, engineObjects.size());
     EngineObject engineObject = EngineObject(engineObjects.size(), Mesh(triangleVertices, triangleIndices));
     engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
 
@@ -644,15 +637,28 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
         1.0f);
 
 
-    DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&pyramid1Position);
+
+
+    DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&engineObject.position);
     DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
     DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
-    DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
+
+    //planetDescripton.orbitInitialAngleRad; 
+    //planetDescripton.orbitAngle
+
+
+
+
+    //DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
     engineObject.planetDescripton = planetDescripton;
     engineObject.planetDesc = true;
+
+    DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.orbitInitialAngleRad);
+    DirectX::XMStoreFloat4x4(&engineObject.rotation, rotationMatrix);
+
     engineObjects.push_back(engineObject);
 }
-
+ 
 
 DirectX::XMFLOAT3 VoyagerEngine::EstimateOrbitVector(const PlanetConfiguration& planetDescription) {
 
@@ -683,7 +689,8 @@ DirectX::XMFLOAT3 VoyagerEngine::scale(DirectX::XMFLOAT3 vec, float scale) {
 }
 
 
-void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton)
+
+void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id)
 {
     int resolution = 128;
 
@@ -734,7 +741,7 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 
     
 
-    Noise noise;
+    Noise noise(id);
 
  
 

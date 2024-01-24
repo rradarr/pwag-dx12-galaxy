@@ -123,7 +123,7 @@ private:
 
     void SetLightPosition();
     void CreateSphere(PlanetConfiguration planetDescripton, float orbit);
-    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton);
+    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id);
     float EstimateNewOrbit(PlanetConfiguration planetDescription);
 
     void OnEarlyUpdate();
