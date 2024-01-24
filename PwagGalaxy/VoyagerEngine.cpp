@@ -15,7 +15,7 @@
 #include "ConfigurationGenerator.h"
 #include "EngineObject.h"
 #include <random>
-
+#include <limits>
 
 VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName) :
     Engine(windowWidth, windowHeight, windowName)
@@ -694,10 +694,16 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 {
     int resolution = 128;
 
+
+
+
     Vertex vert;
     vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
     vert.uvCoordinates = {0.f, 0.f};
     vert.normal = { 0.f, 0.f, 0.f };
+
+
+
 
     DirectX::XMVECTOR faces[] = {
         DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
@@ -744,6 +750,9 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
     Noise noise(id);
 
  
+    float minElevation = FLT_MAX;
+    float maxElevation = FLT_MIN;
+
 
 
     for (int i = 0; i < 6*resolution* resolution; i++) {
@@ -771,12 +780,50 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 
         float planetRadius = 1.0f;
         float elevation = planetRadius * (1 + noiseValue);
+        if (elevation > maxElevation) {
+            maxElevation = elevation;
+        }
 
-            triangleVertices[i].position.x *= elevation;
-            triangleVertices[i].position.y *= elevation;
-            triangleVertices[i].position.z *= elevation;
+        if (elevation < minElevation) {
+            minElevation = elevation;
+        }
+
+        triangleVertices[i].position.x *= elevation;
+        triangleVertices[i].position.y *= elevation;
+        triangleVertices[i].position.z *= elevation;
         
     }
+
+
+
+    std::vector<std::pair<float, DirectX::XMFLOAT4>> gradient;
+    gradient.push_back({ 0.2,  DirectX::XMFLOAT4(0, 0, 1, 1) });
+    gradient.push_back({ 0.3,  DirectX::XMFLOAT4(1, 1, 0, 1) });
+    gradient.push_back({ 0.5,  DirectX::XMFLOAT4(0, 1, 0, 1) });
+    gradient.push_back({ 0.8,  DirectX::XMFLOAT4(0.5, 0.25, 0, 1) });
+    gradient.push_back({ 1,  DirectX::XMFLOAT4(1, 1, 1, 1) });
+
+
+    
+    for (int i = 0; i < 6 * resolution * resolution; i++) {
+        DirectX::XMVECTOR positionVector = DirectX::XMLoadFloat3(&triangleVertices[i].position);
+        float elevation = DirectX::XMVectorGetX(DirectX::XMVector3Length(positionVector));
+        float normalizedElevation = (elevation - minElevation) / (maxElevation - minElevation);
+     
+        for (std::pair<float, DirectX::XMFLOAT4> color : gradient) {
+            if (color.first > normalizedElevation) {
+                triangleVertices[i].color = color.second;
+                break;
+            }
+        }
+
+
+    }
+
+    
+
+
+
 
     // Indexes
     triangleIndices = std::vector<DWORD>{ };
