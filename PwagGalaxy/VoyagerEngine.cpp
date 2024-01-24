@@ -103,16 +103,14 @@ void VoyagerEngine::OnUpdate()
         // create translation matrix for cube 1 from cube 1's position vector
         DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
 
-
-
-       if (engineObject.planetDesc){
-           // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
+        if (engineObject.planetDesc){
+            // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
             DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.velocity * engineObject.planetDescripton.orbitAngle);
             rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * rotationMatrix;
 
-       }
+        }
 
-       DirectX::XMStoreFloat4x4(&engineObject.rotation, rotMat);
+        DirectX::XMStoreFloat4x4(&engineObject.rotation, rotMat);
 
         // we want cube 2 to be half the size of cube 1, so we scale it by .5 in all dimensions
 
@@ -566,7 +564,6 @@ void VoyagerEngine::LoadAssets()
         // Load the texture
         {
             sampleTexture.CreateFromFile("Sci_fi_Metal_Panel_006_basecolor.jpg"); // Create the texture from file.
-            //anotherTexture.CreateFromFile("texture.png");
         }
 
         // Create the depth/stencil heap and buffer.

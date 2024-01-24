@@ -47,11 +47,19 @@ int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdSho
 
     // run the message loop
     MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    bool running = true;
+    while (running)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);  // this will call the WindowProc callback
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+                running = false;
+            if (msg.message == WM_PAINT)
+                break;
 
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);  // this will call the WindowProc callback
+        }
         gameEngine->OnUpdate();
         gameEngine->OnRender();
     }
