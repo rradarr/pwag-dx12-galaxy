@@ -8,4 +8,5 @@ EngineObject::EngineObject(int index, Mesh mesh) {
 	this->delta_rotXMat = DirectX::XMMatrixRotationX(0.f);
 	this->delta_rotYMat = DirectX::XMMatrixRotationX(0.f);
 	this->delta_rotZMat = DirectX::XMMatrixRotationX(0.f);
+
 }
