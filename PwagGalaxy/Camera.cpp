@@ -45,6 +45,8 @@ void Camera::UpdateCamera(DirectX::XMFLOAT2 lookRotation, DirectX::XMFLOAT3 move
     //camTarget = DirectX::XMVector3TransformCoord(localFront, camRotationMatrix);
     //camTarget = DirectX::XMVector3Normalize(camTarget);
 
+    rotMat = localXrot * localYrot;
+
     localRight = DirectX::XMVector3TransformNormal(localRight, localXrot);
     localUp = DirectX::XMVector3TransformNormal(localUp, localXrot);
     localFront = DirectX::XMVector3TransformNormal(localFront, localXrot);
@@ -62,7 +64,7 @@ void Camera::UpdateCamera(DirectX::XMFLOAT2 lookRotation, DirectX::XMFLOAT3 move
 
     camTarget = localFront;
 
-    float moveSpeedScale = 0.1;
+    float moveSpeedScale = 0.01;
     camPosition = DirectX::XMVectorAdd(camPosition, DirectX::XMVectorScale(localRight, movement.x * moveSpeedScale));
     camPosition = DirectX::XMVectorAdd(camPosition, DirectX::XMVectorScale(localUp, movement.y * moveSpeedScale));
     camPosition = DirectX::XMVectorAdd(camPosition, DirectX::XMVectorScale(localFront, movement.z * moveSpeedScale));

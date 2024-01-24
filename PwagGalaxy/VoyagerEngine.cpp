@@ -48,7 +48,7 @@ void VoyagerEngine::OnUpdate()
     DirectX::XMFLOAT2 delta;
     DirectX::XMStoreFloat2(&delta, mouseDelta);
     m_mainCamera.UpdateCamera(delta, keyboradMovementInput);
-    keyboradMovementInput = { 0, 0, 0 };
+    //keyboradMovementInput = { 0, 0, 0 };
 
     Timer* timer = Timer::GetInstance();
     double deltaTime = timer->GetDeltaTime();
@@ -165,6 +165,27 @@ void VoyagerEngine::OnUpdate()
 
     }
 
+    // position the ship
+    DirectX::XMVECTOR pos = m_mainCamera.camPosition;
+    pos = DirectX::XMVectorAdd(pos, DirectX::XMVectorScale(m_mainCamera.localFront, 0.8)); // move ship in front of camera
+    pos = DirectX::XMVectorAdd(pos, DirectX::XMVectorScale(m_mainCamera.localUp, -0.15)); // move ship down
+    DirectX::XMStoreFloat4(&ship.position, pos);
+
+    DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&ship.rotation);
+    rotMat = rotMat * m_mainCamera.rotMat;
+    DirectX::XMStoreFloat4x4(&ship.rotation, rotMat);
+    DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(pos);
+    DirectX::XMMATRIX scaleMat = DirectX::XMMatrixScaling(0.05, 0.05, 0.05);
+
+    //DirectX::XMMATRIX worldMat = scaleMat * translationMat * m_mainCamera.rotMat;
+    DirectX::XMMATRIX worldMat = scaleMat * rotMat * translationMat;
+    DirectX::XMStoreFloat4x4(&ship.worldMat, worldMat);
+
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+
+    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject) * ship.idx, &m_wvpPerObject, sizeof(m_wvpPerObject));
 }
 
 void VoyagerEngine::OnRender()
@@ -235,7 +256,26 @@ void VoyagerEngine::OnKeyDown(UINT8 keyCode)
 
 void VoyagerEngine::OnKeyUp(UINT8 keyCode)
 {
-
+    switch (keyCode) {
+    case 0x57: // W
+        keyboradMovementInput.z = keyboradMovementInput.z == 1? 0 : keyboradMovementInput.z;
+        break;
+    case 0x53: // S
+        keyboradMovementInput.z = keyboradMovementInput.z == -1? 0 : keyboradMovementInput.z;
+        break;
+    case 0x44: // D
+        keyboradMovementInput.x = keyboradMovementInput.x == 1 ? 0 : keyboradMovementInput.x;
+        break;
+    case 0x41: // A
+        keyboradMovementInput.x = keyboradMovementInput.x == -1 ? 0 : keyboradMovementInput.x;
+        break;
+    case 0x20: // SPACE
+        keyboradMovementInput.y = keyboradMovementInput.y == 1 ? 0 : keyboradMovementInput.y;
+        break;
+    case 0x11: // CTRL
+        keyboradMovementInput.y = keyboradMovementInput.y == -1 ? 0 : keyboradMovementInput.y;
+        break;
+    };
 }
 
 void VoyagerEngine::OnMouseMove(int mouseX, int mouseY)
@@ -527,20 +567,21 @@ void VoyagerEngine::LoadAssets()
         }
 
 
-        suzanneMesh.CreateFromFile("ship_v1_normals_test.obj");
-        EngineObject engineObject = EngineObject(engineObjects.size(), suzanneMesh);
-        engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
-        engineObject.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
-        engineObject.delta_rotYMat = DirectX::XMMatrixRotationY(0.002f);
-        engineObject.delta_rotZMat = DirectX::XMMatrixRotationZ(0.0f);
+        shipMesh.CreateFromFile("ship_v1_normals_test.obj");
+        ship = EngineObject(100, shipMesh);
+        //EngineObject engineObject = EngineObject(engineObjects.size(), shipMesh);
+        ship.position = DirectX::XMFLOAT4(2.f, 0.0f, 0.0f, 0.0f);
+        ship.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
+        ship.delta_rotYMat = DirectX::XMMatrixRotationY(0.01f);
+        ship.delta_rotZMat = DirectX::XMMatrixRotationZ(0.0f);
 
 
-        DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&engineObject.position);
+        DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&ship.position);
         DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
-        DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
-        DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
+        DirectX::XMStoreFloat4x4(&ship.worldMat, tmpMat);
+        DirectX::XMStoreFloat4x4(&ship.rotation, DirectX::XMMatrixIdentity());
 
-        engineObjects.push_back(engineObject);
+        //engineObjects.push_back(engineObject);
 
         // Load the texture
         {
@@ -660,7 +701,7 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
     // Record commands.
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+    const float clearColor[] = { 0.005f, 0.005f, 0.005f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -691,15 +732,19 @@ void VoyagerEngine::PopulateCommandList()
         engineObjects[i].mesh.InsertDrawIndexed(m_commandList);
     }
 
+    // draw ship
+    ship.mesh.InsertBufferBind(m_commandList);
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * ship.idx);
+    ship.mesh.InsertDrawIndexed(m_commandList);
 
-    // draw suzanne
+    //
     //m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
     //m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
 
 
-    //suzanneMesh.InsertBufferBind(m_commandList);
+    //shipMesh.InsertBufferBind(m_commandList);
     //m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * planets.size());
-    //suzanneMesh.InsertDrawIndexed(m_commandList);
+    //shipMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);

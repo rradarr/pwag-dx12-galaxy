@@ -74,7 +74,8 @@ private:
     NormalsDebugMaterial materialNormalsDebug;
     LitMaterial materialLit;
 
-    Mesh suzanneMesh;
+    Mesh shipMesh;
+    EngineObject ship;
     std::vector<Mesh> planets;
 
     Texture sampleTexture;
@@ -142,7 +143,5 @@ private:
     DirectX::XMFLOAT3 EstimateOrbitVector(const PlanetConfiguration& planetDescription);
     DirectX::XMFLOAT3 normalize(DirectX::XMFLOAT3 vec);
     DirectX::XMFLOAT3 scale(DirectX::XMFLOAT3 vec, float scale);
-
-
 };
 
