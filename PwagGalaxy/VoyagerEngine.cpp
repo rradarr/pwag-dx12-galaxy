@@ -585,7 +585,7 @@ void VoyagerEngine::LoadAssets()
 
         // Load the texture
         {
-            sampleTexture.CreateFromFile("texture.png"); // Create the texture from file.
+            sampleTexture.CreateFromFile("Sci_fi_Metal_Panel_006_basecolor.jpg"); // Create the texture from file.
         }
 
         // Create the depth/stencil heap and buffer.
