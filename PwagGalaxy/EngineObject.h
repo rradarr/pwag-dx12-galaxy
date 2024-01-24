@@ -1,5 +1,8 @@
 #pragma once
 #include "Mesh.h"
+#include "ConfigurationGenerator.h"
+
+
 
 class EngineObject
 {
@@ -14,6 +17,8 @@ class EngineObject
 		DirectX::XMMATRIX delta_rotZMat;
 		EngineObject() = default;
 		EngineObject(int index, Mesh mesh);
+		bool planetDesc = false;
+		PlanetConfiguration planetDescripton;
 	private:
 		
 };

@@ -122,10 +122,16 @@ private:
     void WaitForPreviousFrame();
 
     void SetLightPosition();
-    void CreateSphere();
+    void CreateSphere(PlanetConfiguration planetDescripton, float orbit);
     void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton);
+    float EstimateNewOrbit(PlanetConfiguration planetDescription);
 
     void OnEarlyUpdate();
+
+    DirectX::XMFLOAT3 EstimateOrbitVector(const PlanetConfiguration& planetDescription);
+    DirectX::XMFLOAT3 normalize(DirectX::XMFLOAT3 vec);
+    DirectX::XMFLOAT3 scale(DirectX::XMFLOAT3 vec, float scale);
+
 
 };
 

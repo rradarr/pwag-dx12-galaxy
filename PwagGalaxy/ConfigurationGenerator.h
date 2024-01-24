@@ -33,9 +33,9 @@ struct PlanetSurfaceSettings {
 };
 
 struct PlanetOrbitSettings {
-    MinMaxRange offset = { -1.0f, 1.0f };
+    MinMaxRange offset = { -0.01f, 0.01f };
     MinMaxRange initAngleRad = { 0.0f,  2.0f * DirectX::XM_PI };
-    MinMaxRange emptyRange = { 1.0f, 15.0f };
+    MinMaxRange emptyRange = { 0.01f, 0.15f };
     MinMaxRange rotationAngle = { 0.0f, 360.0f };
 };
 
@@ -44,8 +44,8 @@ struct PlanetSettings
     PlanetSurfaceSettings surfaceDescriptor;
     PlanetOrbitSettings orbitDescriptor;
     float probability = 0.2f;
-    MinMaxRange radius = { 10.0f, 50.0f };
-    MinMaxRange velocity = { 10.0f, 50.0f };
+    MinMaxRange radius = { 0.1f, 0.5f };
+    MinMaxRange velocity = { 0.1f, 0.5f };
     MinMaxRangeInt numberOfLayers = { 2, 4 };
 };
 
