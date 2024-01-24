@@ -1103,10 +1103,15 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 
     // Now loop over all vertices and normalize their normals (duh...).
     // This will basically average the per-triangle normals and give smooth normals.
+    float negateNormals = 1;
+    if (sun) {
+        negateNormals = -1; // flip normals if ot's the sun!
+    }
+
     for (int i = 0; i < triangleVertices.size(); i++)
     {
         DirectX::XMVECTOR normal = DirectX::XMLoadFloat3(&triangleVertices[i].normal);
-        normal = DirectX::XMVector3Normalize(normal);
+        normal = DirectX::XMVectorScale(DirectX::XMVector3Normalize(normal), negateNormals);
         DirectX::XMStoreFloat3(&triangleVertices[i].normal, normal);
     }
 
