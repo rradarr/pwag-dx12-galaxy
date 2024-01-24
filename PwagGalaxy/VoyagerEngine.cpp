@@ -827,18 +827,37 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
         float elevation = DirectX::XMVectorGetX(DirectX::XMVector3Length(positionVector));
         float normalizedElevation = (elevation - minElevation) / (maxElevation - minElevation);
      
-        DirectX::XMFLOAT4 prevColor = gradient[0].second;
+       
+     
+        for (int idx = 0; idx < gradient.size(); idx++) {
+            std::pair<float, DirectX::XMFLOAT4> color = gradient[idx];
 
-        for (std::pair<float, DirectX::XMFLOAT4> color : gradient) {
-            
+            std::pair<float, DirectX::XMFLOAT4> nextColor = (idx < gradient.size() - 1) ? gradient[idx + 1] : color;
+
             if (color.first > normalizedElevation) {
 
+                float distRange = nextColor.first - color.first;
+                if (distRange > 0.0f) {
+                    float dist = normalizedElevation - color.first;
+                    float percentage = dist / distRange;
+                    DirectX::XMFLOAT4 gradientCol = DirectX::XMFLOAT4(
+                        color.second.x * (1.0f - percentage) + nextColor.second.x * percentage,
+                        color.second.y * (1.0f - percentage) + nextColor.second.y * percentage,
+                        color.second.z * (1.0f - percentage) + nextColor.second.z * percentage,
+                        1.0f
+                        );
+                    triangleVertices[i].color = gradientCol;
+                }
+                else {
+                    triangleVertices[i].color = color.second;
+                }
 
-                triangleVertices[i].color = color.second;
+                
                 break;
             }
-            prevColor = color.second;
+  
         }
+
 
 
     }
