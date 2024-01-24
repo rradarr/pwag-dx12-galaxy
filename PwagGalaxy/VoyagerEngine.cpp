@@ -421,6 +421,40 @@ void VoyagerEngine::LoadAssets()
         }
 
 
+        std::random_device rd; 
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<float> distribution(2.0f, 5.0f);
+        std::uniform_real_distribution<float> distribution2(0.01,0.04f);
+        std::uniform_real_distribution<float> distribution3(0, 15.0f);
+        for (int i = 0; i < 32; i++) {
+     
+            std::string randomString2;
+            randomString2.reserve(10);
+            for (int i = 0; i < 10; ++i) {
+                randomString2 += charset[rand() % charsetSize];
+            }
+            std::string SID = "asteroida" + randomString2;
+            float random_number = distribution(gen);
+            PlanetConfiguration asteroidDesc = generator.GeneratePlanetConfiguration(SID, random_number, DirectX::XMFLOAT3(0, 0, 0));
+            for (PlanetSurfaceConfiguration &layer : asteroidDesc.layers) {
+                layer.baseRoughness = 2.0f;
+      
+                layer.minValue = 0.1f;
+                layer.strength = 0.8f;
+                layer.persistance = 0.01f;
+
+
+            }
+
+            asteroidDesc.radius = distribution2(gen);
+           
+            
+
+            CreateSphere(asteroidDesc, random_number, false, true);
+
+
+        }
+
 
         suzanneMesh.CreateFromFile("ship_v1_normals_test.obj");
         EngineObject engineObject = EngineObject(engineObjects.size(), suzanneMesh);
@@ -629,13 +663,13 @@ void VoyagerEngine::SetLightPosition()
 
 }
 
-void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orbit, bool sun)
+void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orbit, bool sun, bool asteroid)
 {
     std::vector<Vertex> triangleVertices;
     std::vector<DWORD> triangleIndices;
     
  
-    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton, engineObjects.size(), sun);
+    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton, engineObjects.size(), sun, asteroid);
     EngineObject engineObject = EngineObject(engineObjects.size(), Mesh(triangleVertices, triangleIndices));
     engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
 
@@ -715,9 +749,10 @@ float randFloat() {
 
 
 
-void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun)
+void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun, bool asteroid)
 {
-    int resolution = 256;
+
+    int resolution = asteroid? 16 : 256;
 
 
 
@@ -830,6 +865,11 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
             gradient.push_back({ 0.5,  DirectX::XMFLOAT4(1, 0.3, 0, 1) });
             gradient.push_back({ 0.95,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
             gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0, 0, 0, 1) });
+        }
+        else if (asteroid) {
+            gradient.push_back({ 0.1,  DirectX::XMFLOAT4(0.3, 0.3, 0.4, 1) });
+            gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0.3,0.4, 0.4, 1) });
+
         }
         else if (id == 2) {
 
