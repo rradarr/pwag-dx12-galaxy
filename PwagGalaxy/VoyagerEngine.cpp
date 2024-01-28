@@ -25,10 +25,16 @@ VoyagerEngine::VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring w
     m_viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, static_cast<float>(windowWidth), static_cast<float>(windowHeight) };
     m_scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(windowWidth), static_cast<LONG>(windowHeight) };
     m_rtvDescriptorSize = 0;
+    hasFocus = true;
+    windowCenter = { static_cast<float>(windowWidth) / 2.f, static_cast<float>(windowHeight) / 2.f };
+    keyboradMovementInput = { 0, 0, 0 };
+    mouseDelta = { 0, 0 };
 }
 
-void VoyagerEngine::OnInit()
+void VoyagerEngine::OnInit(HWND windowHandle)
 {
+    this->windowHandle = windowHandle;
+
     LoadPipeline();
     LoadAssets();
     LoadScene();
@@ -37,12 +43,26 @@ void VoyagerEngine::OnInit()
 
 void VoyagerEngine::OnUpdate()
 {
+    m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+    WaitForPreviousFrame();
+
     OnEarlyUpdate();
 
+    DirectX::XMFLOAT2 delta;
+    DirectX::XMStoreFloat2(&delta, mouseDelta);
+    m_mainCamera.UpdateCamera(delta, keyboradMovementInput);
+    //keyboradMovementInput = { 0, 0, 0 };
+
+    Timer* timer = Timer::GetInstance();
+    double deltaTime = timer->GetDeltaTime();
+    // Store the view matrix (for lighting).
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
+
     // update app logic, such as moving the camera or figuring out what objects are in view
-    static float rIncrement = 0.00002f;
-    static float gIncrement = 0.00006f;
-    static float bIncrement = 0.00009f;
+    static float rIncrement = 0.2f * deltaTime;
+    static float gIncrement = 0.6f * deltaTime;
+    static float bIncrement = 0.9f * deltaTime;
 
     m_cbData.colorMultiplier.x += rIncrement;
     m_cbData.colorMultiplier.y += gIncrement;
@@ -66,43 +86,31 @@ void VoyagerEngine::OnUpdate()
 
     // copy our ConstantBuffer instance to the mapped constant buffer resource
     memcpy(cbColorMultiplierGPUAddress[m_frameBufferIndex], &m_cbData, sizeof(m_cbData));
-   
+
+    // Update object positions.
+    // create rotation matrices
+    DirectX::XMMATRIX rotXMat = DirectX::XMMatrixRotationX(0.f * deltaTime);
+    DirectX::XMMATRIX rotYMat = DirectX::XMMatrixRotationY(0.2f * deltaTime);
+    DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.f * deltaTime);
+
     DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat); // load view matrix
     DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&m_mainCamera.projMat); // load projection matrix
 
     for (EngineObject &engineObject : engineObjects) {
 
         DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * engineObject.delta_rotXMat * engineObject.delta_rotYMat * engineObject.delta_rotZMat;
-       
-        //rotMat = engineObject.delta_rotZMat * (DirectX::XMLoadFloat4x4(&engineObject.rotation) * (engineObject.delta_rotXMat * engineObject.delta_rotYMat));
-        //if (engineObject.idx == 0) {
-    
-        //    for (int i = 0; i < 4; i++) {
-        //        for (int j = 0; j < 4; j++) {
-        //            std::cout << engineObject.rotation(i, j) << " | ";
-        //        }
-        //        std::cout << std::endl;
-        //    }
-        //    std::cout << std::endl;  f
-        //}
-
-     
-
-
 
         // create translation matrix for cube 1 from cube 1's position vector
         DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
 
-
-
-       if (engineObject.planetDesc){
-           // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
+        if (engineObject.planetDesc){
+            // DirectX::XMMATRIX translationMatrix = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&engineObject.position));
             DirectX::XMMATRIX rotationMatrix = DirectX::XMMatrixRotationAxis(DirectX::XMLoadFloat3(&engineObject.planetDescripton.orbitAxis), engineObject.planetDescripton.velocity * engineObject.planetDescripton.orbitAngle);
             rotMat = DirectX::XMLoadFloat4x4(&engineObject.rotation) * rotationMatrix;
 
-       }
+        }
 
-       DirectX::XMStoreFloat4x4(&engineObject.rotation, rotMat);
+        DirectX::XMStoreFloat4x4(&engineObject.rotation, rotMat);
 
         // we want cube 2 to be half the size of cube 1, so we scale it by .5 in all dimensions
 
@@ -117,12 +125,12 @@ void VoyagerEngine::OnUpdate()
         DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
 
         // Store the view matrix (for lighting).
-        DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
-        DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));
-        
+        /*DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+        DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));*/
+
         // update constant buffer for cube1
         // create the wvp matrix and store in constant buffer
-       
+
         DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&engineObject.worldMat) * viewMat * projMat; // create wvp matrix
         DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat); // must transpose wvp matrix for the gpu
         DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
@@ -131,12 +139,35 @@ void VoyagerEngine::OnUpdate()
 
     }
 
+    // position the ship
+    DirectX::XMVECTOR pos = m_mainCamera.camPosition;
+    pos = DirectX::XMVectorAdd(pos, DirectX::XMVectorScale(m_mainCamera.localFront, 0.8)); // move ship in front of camera
+    pos = DirectX::XMVectorAdd(pos, DirectX::XMVectorScale(m_mainCamera.localUp, -0.15)); // move ship down
+    DirectX::XMStoreFloat4(&ship.position, pos);
+
+    DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&ship.rotation);
+    rotMat = rotMat * m_mainCamera.rotMat;
+    DirectX::XMStoreFloat4x4(&ship.rotation, rotMat);
+    DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(pos);
+    DirectX::XMMATRIX scaleMat = DirectX::XMMatrixScaling(0.05, 0.05, 0.05);
+
+    //DirectX::XMMATRIX worldMat = scaleMat * translationMat * m_mainCamera.rotMat;
+    DirectX::XMMATRIX worldMat = scaleMat * rotMat * translationMat;
+    DirectX::XMStoreFloat4x4(&ship.worldMat, worldMat);
+
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.worldMat, DirectX::XMMatrixTranspose(worldMat));
+    /*DirectX::XMStoreFloat4x4(&m_wvpPerObject.viewMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.viewMat)));
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.projectionMat, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&m_mainCamera.projMat)));*/
+    DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(worldMat * viewMat * projMat); // must transpose wvp matrix for the gpu
+    DirectX::XMStoreFloat4x4(&m_wvpPerObject.wvpMat, transposed); // store transposed wvp matrix in constant buffer
+
+    memcpy(m_WVPConstantBuffersGPUAddress[m_frameBufferIndex] + sizeof(m_wvpPerObject) * ship.idx, &m_wvpPerObject, sizeof(m_wvpPerObject));
 }
 
 void VoyagerEngine::OnRender()
 {
-    m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-    WaitForPreviousFrame();
+    //m_frameBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+    //WaitForPreviousFrame();
 
     // Record all the commands we need to render the scene into the command list.
     PopulateCommandList();
@@ -177,12 +208,70 @@ void VoyagerEngine::OnDestroy()
 
 void VoyagerEngine::OnKeyDown(UINT8 keyCode)
 {
-    std::cout << "Engine detected key down." << std::endl;
+    switch (keyCode) {
+    case 0x57: // W
+        keyboradMovementInput.z = 1;
+        break;
+    case 0x53: // S
+        keyboradMovementInput.z = -1;
+        break;
+    case 0x44: // D
+        keyboradMovementInput.x = 1;
+        break;
+    case 0x41: // A
+        keyboradMovementInput.x = -1;
+        break;
+    case 0x20: // SPACE
+        keyboradMovementInput.y = 1;
+        break;
+    case 0x11: // CTRL
+        keyboradMovementInput.y = -1;
+        break;
+    };
 }
 
 void VoyagerEngine::OnKeyUp(UINT8 keyCode)
 {
-    std::cout << "Engine detected key up." << std::endl;
+    switch (keyCode) {
+    case 0x57: // W
+        keyboradMovementInput.z = keyboradMovementInput.z == 1? 0 : keyboradMovementInput.z;
+        break;
+    case 0x53: // S
+        keyboradMovementInput.z = keyboradMovementInput.z == -1? 0 : keyboradMovementInput.z;
+        break;
+    case 0x44: // D
+        keyboradMovementInput.x = keyboradMovementInput.x == 1 ? 0 : keyboradMovementInput.x;
+        break;
+    case 0x41: // A
+        keyboradMovementInput.x = keyboradMovementInput.x == -1 ? 0 : keyboradMovementInput.x;
+        break;
+    case 0x20: // SPACE
+        keyboradMovementInput.y = keyboradMovementInput.y == 1 ? 0 : keyboradMovementInput.y;
+        break;
+    case 0x11: // CTRL
+        keyboradMovementInput.y = keyboradMovementInput.y == -1 ? 0 : keyboradMovementInput.y;
+        break;
+    case 0x58: // X
+        useWireframe = !useWireframe;
+    };
+}
+
+void VoyagerEngine::OnMouseMove(int mouseX, int mouseY)
+{
+    if (hasFocus)
+    {
+        mousePos = { static_cast<float>(mouseX), static_cast<float>(mouseY) };
+    }
+}
+
+void VoyagerEngine::OnGotFocus()
+{
+    hasFocus = true;
+}
+
+void VoyagerEngine::OnLostFocus()
+{
+    hasFocus = false;
 }
 
 void VoyagerEngine::LoadPipeline()
@@ -395,15 +484,15 @@ void VoyagerEngine::LoadAssets()
         for (int i = 0; i < 10; ++i) {
             randomString += charset[rand() % charsetSize];
         }
-        
+
 
         PlanetConfiguration solarDescriptor = generator.GeneratePlanetConfiguration("SUN", 0.0f, DirectX::XMFLOAT3(0, 0, 0));
         solarDescriptor.orbitEmptyRange = 0.0f;
         solarDescriptor.radius = 1.0f;
         solarDescriptor.layers[0].baseRoughness = 0.5f;
-  
+
         //solarDescriptor.layers[0].minValue = 0.1f;
-      
+
         CreateSphere(solarDescriptor, 0.0f, true);
 
 
@@ -421,13 +510,13 @@ void VoyagerEngine::LoadAssets()
         }
 
 
-        std::random_device rd; 
+        std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<float> distribution(2.0f, 5.0f);
         std::uniform_real_distribution<float> distribution2(0.01,0.04f);
         std::uniform_real_distribution<float> distribution3(0, 15.0f);
         for (int i = 0; i < 32; i++) {
-     
+
             std::string randomString2;
             randomString2.reserve(10);
             for (int i = 0; i < 10; ++i) {
@@ -438,7 +527,7 @@ void VoyagerEngine::LoadAssets()
             PlanetConfiguration asteroidDesc = generator.GeneratePlanetConfiguration(SID, random_number, DirectX::XMFLOAT3(0, 0, 0));
             for (PlanetSurfaceConfiguration &layer : asteroidDesc.layers) {
                 layer.baseRoughness = 2.0f;
-      
+
                 layer.minValue = 0.1f;
                 layer.strength = 0.8f;
                 layer.persistance = 0.01f;
@@ -447,8 +536,8 @@ void VoyagerEngine::LoadAssets()
             }
 
             asteroidDesc.radius = distribution2(gen);
-           
-            
+
+
 
             CreateSphere(asteroidDesc, random_number, false, true);
 
@@ -456,24 +545,25 @@ void VoyagerEngine::LoadAssets()
         }
 
 
-        suzanneMesh.CreateFromFile("ship_v1_normals_test.obj");
-        EngineObject engineObject = EngineObject(engineObjects.size(), suzanneMesh);
-        engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
-        engineObject.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
-        engineObject.delta_rotYMat = DirectX::XMMatrixRotationY(0.002f);
-        engineObject.delta_rotZMat = DirectX::XMMatrixRotationZ(0.0f);
+        shipMesh.CreateFromFile("ship_v1_normals_test.obj");
+        ship = EngineObject(engineObjects.size(), shipMesh);
+        //EngineObject engineObject = EngineObject(engineObjects.size(), shipMesh);
+        ship.position = DirectX::XMFLOAT4(2.f, 0.0f, 0.0f, 0.0f);
+        ship.delta_rotXMat = DirectX::XMMatrixRotationX(0.0f);
+        ship.delta_rotYMat = DirectX::XMMatrixRotationY(0.01f);
+        ship.delta_rotZMat = DirectX::XMMatrixRotationZ(0.0f);
 
 
-        DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&engineObject.position);
+        DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&ship.position);
         DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
-        DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
-        DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
+        DirectX::XMStoreFloat4x4(&ship.worldMat, tmpMat);
+        DirectX::XMStoreFloat4x4(&ship.rotation, DirectX::XMMatrixIdentity());
 
-        engineObjects.push_back(engineObject);
+        //engineObjects.push_back(engineObject);
 
         // Load the texture
         {
-            sampleTexture.CreateFromFile("texture.png"); // Create the texture from file.
+            sampleTexture.CreateFromFile("Sci_fi_Metal_Panel_006_basecolor.jpg"); // Create the texture from file.
         }
 
         // Create the depth/stencil heap and buffer.
@@ -588,8 +678,13 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
+    if (useWireframe) {
+        m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
+        m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
+    }
+
     // Record commands.
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+    const float clearColor[] = { 0.005f, 0.005f, 0.005f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -599,8 +694,10 @@ void VoyagerEngine::PopulateCommandList()
     m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
     // Set the root table at index 2 to the texture.
     CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_LigtParamConstantBuffer->GetGPUVirtualAddress());
+    if (!useWireframe) {
+        m_commandList->SetGraphicsRootDescriptorTable(2, descriptorHandle.Offset(sampleTexture.GetOffsetInHeap(), ShaderResourceHeapManager::GetDescriptorSize()));
+        m_commandList->SetGraphicsRootConstantBufferView(1, m_LigtParamConstantBuffer->GetGPUVirtualAddress());
+    }
     //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
 
@@ -610,7 +707,7 @@ void VoyagerEngine::PopulateCommandList()
 
     //CD3DX12_GPU_DESCRIPTOR_HANDLE descriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(ShaderResourceHeapManager::GetHeap()->GetGPUDescriptorHandleForHeapStart());
     //m_commandList->SetGraphicsRootDescriptorTable(0, descriptorHandle.Offset(m_frameBufferIndex, ShaderResourceHeapManager::GetDescriptorSize()));
-    
+
     // draw ball
     int idx = 0;
     for (int i = 0; i < engineObjects.size(); i++) {
@@ -620,15 +717,19 @@ void VoyagerEngine::PopulateCommandList()
         engineObjects[i].mesh.InsertDrawIndexed(m_commandList);
     }
 
-   
-    // draw suzanne
+    // draw ship
+    ship.mesh.InsertBufferBind(m_commandList);
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * ship.idx);
+    ship.mesh.InsertDrawIndexed(m_commandList);
+
+    //
     //m_commandList->SetPipelineState(materialWireframe.GetPSO().Get());
     //m_commandList->SetGraphicsRootSignature(materialWireframe.GetRootSignature().Get());
-    
-    
-    //suzanneMesh.InsertBufferBind(m_commandList);
+
+
+    //shipMesh.InsertBufferBind(m_commandList);
     //m_commandList->SetGraphicsRootConstantBufferView(0, m_WVPConstantBuffers[m_frameBufferIndex]->GetGPUVirtualAddress() + sizeof(wvpConstantBuffer) * planets.size());
-    //suzanneMesh.InsertDrawIndexed(m_commandList);
+    //shipMesh.InsertDrawIndexed(m_commandList);
 
     // Indicate that the back buffer will now be used to present.
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameBufferIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -656,7 +757,7 @@ void VoyagerEngine::WaitForPreviousFrame()
 
 void VoyagerEngine::SetLightPosition()
 {
-    lightParams.lightPosition = { 2, 1, -3 };
+    lightParams.lightPosition = { 0, 0, 0 };
 
     // copy our ConstantBuffer instance to the mapped constant buffer resource
     memcpy(m_LightParamConstantBufferGPUAddres, &lightParams.lightPosition, sizeof(lightParams.lightPosition));
@@ -667,8 +768,8 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
 {
     std::vector<Vertex> triangleVertices;
     std::vector<DWORD> triangleIndices;
-    
- 
+
+
     GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton, engineObjects.size(), sun, asteroid);
     EngineObject engineObject = EngineObject(engineObjects.size(), Mesh(triangleVertices, triangleIndices));
     engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
@@ -690,7 +791,7 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
     DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
     DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
 
-    //planetDescripton.orbitInitialAngleRad; 
+    //planetDescripton.orbitInitialAngleRad;
     //planetDescripton.orbitAngle
 
 
@@ -711,7 +812,7 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
 
 
 
- 
+
 
 DirectX::XMFLOAT3 VoyagerEngine::EstimateOrbitVector(const PlanetConfiguration& planetDescription) {
 
@@ -987,10 +1088,15 @@ void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices
 
     // Now loop over all vertices and normalize their normals (duh...).
     // This will basically average the per-triangle normals and give smooth normals.
+    float negateNormals = 1;
+    if (sun) {
+        negateNormals = -1; // flip normals if ot's the sun!
+    }
+
     for (int i = 0; i < triangleVertices.size(); i++)
     {
         DirectX::XMVECTOR normal = DirectX::XMLoadFloat3(&triangleVertices[i].normal);
-        normal = DirectX::XMVector3Normalize(normal);
+        normal = DirectX::XMVectorScale(DirectX::XMVector3Normalize(normal), negateNormals);
         DirectX::XMStoreFloat3(&triangleVertices[i].normal, normal);
     }
 
@@ -1012,5 +1118,21 @@ void VoyagerEngine::OnEarlyUpdate()
     {
         timeTillFpsDisplayUpdate = 0.0;
         std::cout << timer->GetFps() << "\r";
+    }
+
+    GetMouseDelta();
+}
+
+void VoyagerEngine::GetMouseDelta()
+{
+    mouseDelta = DirectX::XMVectorSubtract(DirectX::XMLoadFloat2(&mousePos), DirectX::XMLoadFloat2(&windowCenter));
+    DirectX::XMFLOAT2 delta;
+    DirectX::XMStoreFloat2(&delta, mouseDelta);
+
+    if (hasFocus)
+    {
+        POINT center = { windowCenter.x, windowCenter.y };
+        ClientToScreen(windowHandle, &center);
+        SetCursorPos(center.x, center.y);
     }
 }

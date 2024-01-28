@@ -4,6 +4,7 @@
 #include "Engine.h"
 
 HWND WindowsApplication::windowHandle = nullptr;
+HCURSOR WindowsApplication::cursor = NULL;
 
 int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdShow)
 {
@@ -42,15 +43,23 @@ int WindowsApplication::Run(Engine* gameEngine, HINSTANCE hInstance, int nCmdSho
 
     ShowWindow(windowHandle, nCmdShow);
 
-    gameEngine->OnInit();
+    gameEngine->OnInit(windowHandle);
 
     // run the message loop
     MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    bool running = true;
+    while (running)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);  // this will call the WindowProc callback
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+                running = false;
+            if (msg.message == WM_PAINT)
+                break;
 
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);  // this will call the WindowProc callback
+        }
         gameEngine->OnUpdate();
         gameEngine->OnRender();
     }
@@ -81,6 +90,29 @@ LRESULT CALLBACK WindowsApplication::WindowProc(HWND hwnd, UINT uMsg, WPARAM wPa
 
     case WM_KEYUP:
         gameEngine->OnKeyUp(static_cast<UINT8>(wParam));
+        return 0;
+
+    case WM_MOUSEMOVE:
+        {
+            int xPos = GET_X_LPARAM(lParam);
+            int yPos = GET_Y_LPARAM(lParam);
+            gameEngine->OnMouseMove(xPos, yPos);
+        }
+        return 0;
+
+    case WM_SETFOCUS:
+        {
+            gameEngine->OnGotFocus();
+            cursor = GetCursor();
+            SetCursor(NULL);
+        }
+        return 0;
+
+    case WM_KILLFOCUS:
+        {
+            gameEngine->OnLostFocus();
+            SetCursor(cursor);
+        }
         return 0;
 
     case WM_PAINT:

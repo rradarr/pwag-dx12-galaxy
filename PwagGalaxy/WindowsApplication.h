@@ -13,5 +13,6 @@ protected:
 
 private:
     static HWND windowHandle;
+    static HCURSOR cursor;
 };
 

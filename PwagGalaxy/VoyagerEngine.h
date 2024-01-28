@@ -15,13 +15,16 @@ class VoyagerEngine : public Engine
 public:
     VoyagerEngine(UINT windowWidth, UINT windowHeight, std::wstring windowName);
 
-    virtual void OnInit();
+    virtual void OnInit(HWND windowHandle);
     virtual void OnUpdate();
     virtual void OnRender();
     virtual void OnDestroy();
 
     virtual void OnKeyDown(UINT8 keyCode);
     virtual void OnKeyUp(UINT8 keyCode);
+    virtual void OnMouseMove(int mouseX, int mouseY);
+    virtual void OnGotFocus();
+    virtual void OnLostFocus();
 
 private:
     static const UINT mc_frameBufferCount = 3;
@@ -71,7 +74,10 @@ private:
     NormalsDebugMaterial materialNormalsDebug;
     LitMaterial materialLit;
 
-    Mesh suzanneMesh;
+    bool useWireframe = false;
+
+    Mesh shipMesh;
+    EngineObject ship;
     std::vector<Mesh> planets;
 
     Texture sampleTexture;
@@ -114,6 +120,13 @@ private:
     ComPtr<ID3D12Fence> m_fence[mc_frameBufferCount];
     UINT64 m_fenceValue[mc_frameBufferCount];
 
+    // Input related objects
+    bool hasFocus;
+    DirectX::XMFLOAT2 mousePos;
+    DirectX::XMVECTOR mouseDelta;
+    DirectX::XMFLOAT2 windowCenter;
+    DirectX::XMFLOAT3 keyboradMovementInput;
+
     void LoadPipeline();
     void LoadAssets();
     void LoadMaterials();
@@ -127,11 +140,10 @@ private:
     float EstimateNewOrbit(PlanetConfiguration planetDescription);
 
     void OnEarlyUpdate();
+    void GetMouseDelta();
 
     DirectX::XMFLOAT3 EstimateOrbitVector(const PlanetConfiguration& planetDescription);
     DirectX::XMFLOAT3 normalize(DirectX::XMFLOAT3 vec);
     DirectX::XMFLOAT3 scale(DirectX::XMFLOAT3 vec, float scale);
-
-
 };
 
