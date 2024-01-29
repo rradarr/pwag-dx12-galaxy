@@ -485,17 +485,12 @@ void VoyagerEngine::LoadAssets()
             randomString += charset[rand() % charsetSize];
         }
 
-
         PlanetConfiguration solarDescriptor = generator.GeneratePlanetConfiguration("SUN", 0.0f, DirectX::XMFLOAT3(0, 0, 0));
         solarDescriptor.orbitEmptyRange = 0.0f;
         solarDescriptor.radius = 1.0f;
         solarDescriptor.layers[0].baseRoughness = 0.5f;
 
-        //solarDescriptor.layers[0].minValue = 0.1f;
-
-        CreateSphere(solarDescriptor, 0.0f, true);
-
-
+        CreatePlanet(solarDescriptor, 0.0f, true);
 
         float orbit = solarDescriptor.radius;
         randomString = generator.GenerateSeed(randomString);
@@ -505,10 +500,9 @@ void VoyagerEngine::LoadAssets()
             PlanetConfiguration planetDescripton = generator.GeneratePlanetConfiguration(SID, orbit, DirectX::XMFLOAT3(0, 0, 0));
             //generator.PrintPlanetConfiguration(planetDescripton);
 
-            CreateSphere(planetDescripton, orbit);
+            CreatePlanet(planetDescripton, orbit);
             orbit = EstimateNewOrbit(planetDescripton);
         }
-
 
         std::random_device rd;
         std::mt19937 gen(rd());
@@ -516,34 +510,25 @@ void VoyagerEngine::LoadAssets()
         std::uniform_real_distribution<float> distribution2(0.01,0.04f);
         std::uniform_real_distribution<float> distribution3(0, 15.0f);
         for (int i = 0; i < 32; i++) {
-
             std::string randomString2;
             randomString2.reserve(10);
             for (int i = 0; i < 10; ++i) {
                 randomString2 += charset[rand() % charsetSize];
             }
+
             std::string SID = "asteroida" + randomString2;
             float random_number = distribution(gen);
             PlanetConfiguration asteroidDesc = generator.GeneratePlanetConfiguration(SID, random_number, DirectX::XMFLOAT3(0, 0, 0));
             for (PlanetSurfaceConfiguration &layer : asteroidDesc.layers) {
                 layer.baseRoughness = 2.0f;
-
                 layer.minValue = 0.1f;
                 layer.strength = 0.8f;
                 layer.persistance = 0.01f;
-
-
             }
-
             asteroidDesc.radius = distribution2(gen);
 
-
-
-            CreateSphere(asteroidDesc, random_number, false, true);
-
-
+            CreatePlanet(asteroidDesc, random_number, false, true);
         }
-
 
         shipMesh.CreateFromFile("ship_v1_normals_test.obj");
         ship = EngineObject(engineObjects.size(), shipMesh);
@@ -764,19 +749,18 @@ void VoyagerEngine::SetLightPosition()
 
 }
 
-void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orbit, bool sun, bool asteroid)
+void VoyagerEngine::CreatePlanet(PlanetConfiguration planetDescripton, float orbit, bool sun, bool asteroid)
 {
     std::vector<Vertex> triangleVertices;
     std::vector<DWORD> triangleIndices;
 
-
-    GenerateSphereVertices(triangleVertices, triangleIndices, planetDescripton, engineObjects.size(), sun, asteroid);
+    int resolution = asteroid ? 16 : 256;
+    Mesh::CreateSphere(triangleVertices, triangleIndices, resolution);
+    GeneratePlanet(triangleVertices, triangleIndices, planetDescripton, engineObjects.size(), sun, asteroid);
     EngineObject engineObject = EngineObject(engineObjects.size(), Mesh(triangleVertices, triangleIndices));
     engineObject.position = DirectX::XMFLOAT4(engineObjects.size(), 0.0f, 0.0f, 0.0f);
 
-
     DirectX::XMFLOAT3 estimatedOrbitVector = sun? DirectX::XMFLOAT3(0,0,0) : EstimateOrbitVector(planetDescripton);
-
 
     engineObject.position = DirectX::XMFLOAT4(
         planetDescripton.starPosition.x + estimatedOrbitVector.x,
@@ -784,20 +768,10 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
         planetDescripton.starPosition.z + estimatedOrbitVector.z,
         1.0f);
 
-
-
-
     DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&engineObject.position);
     DirectX::XMMATRIX tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
     DirectX::XMStoreFloat4x4(&engineObject.worldMat, tmpMat);
 
-    //planetDescripton.orbitInitialAngleRad;
-    //planetDescripton.orbitAngle
-
-
-
-
-    //DirectX::XMStoreFloat4x4(&engineObject.rotation, DirectX::XMMatrixIdentity());
     engineObject.planetDescripton = planetDescripton;
     engineObject.planetDesc = true;
 
@@ -806,13 +780,6 @@ void VoyagerEngine::CreateSphere(PlanetConfiguration planetDescripton, float orb
 
     engineObjects.push_back(engineObject);
 }
-
-
-
-
-
-
-
 
 DirectX::XMFLOAT3 VoyagerEngine::EstimateOrbitVector(const PlanetConfiguration& planetDescription) {
 
@@ -848,215 +815,116 @@ float randFloat() {
     return static_cast<float>(rand()) / RAND_MAX;
 }
 
-
-
-void VoyagerEngine::GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun, bool asteroid)
+void VoyagerEngine::GeneratePlanet(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun, bool asteroid)
 {
+    Noise noise(id);
 
-    int resolution = asteroid? 16 : 256;
+    float minElevation = FLT_MAX;
+    float maxElevation = FLT_MIN;
 
+    for (int i = 0; i < triangleVertices.size(); i++) {
+        float noiseValue = 0.0f;
+        float amplitude = 1.0f;
+        float frequency = planetDescripton.layers[0].baseRoughness;
 
+        for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
 
+            DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
+                triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
+                triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
+                triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
+            );
+            float signal = noise.Evaluate(point);
 
-    Vertex vert;
-    vert.color = DirectX::XMFLOAT4(1, 1, 0, 1);
-    vert.uvCoordinates = {0.f, 0.f};
-    vert.normal = { 0.f, 0.f, 0.f };
-
-
-
-
-    DirectX::XMVECTOR faces[] = {
-        DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
-        DirectX::XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f),
-        DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
-        DirectX::XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f),
-        DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
-        DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),
-    };
-
-    for (int face = 0; face < 6; face++) {
-
-        DirectX::XMVECTOR localUp = faces[face];
-        DirectX::XMVECTOR xAxis = DirectX::XMVectorSet(DirectX::XMVectorGetY(localUp), DirectX::XMVectorGetZ(localUp), DirectX::XMVectorGetX(localUp), 0.0f);
-        DirectX::XMVECTOR yAxis = DirectX::XMVector3Cross(localUp, xAxis);
-        yAxis = DirectX::XMVectorNegate(yAxis);
-
-        for (int y = 0; y < resolution; y++) {
-            for (int x = 0; x < resolution; x++) {
-                int i = y * resolution + x;
-                float xPercent = (float)x / (resolution - 1);
-                float yPercent = (float)y / (resolution - 1);
-                float xStage = (xPercent - 0.5f) * 2.0f;
-                float yStage = (yPercent - 0.5f) * 2.0f;
-
-                DirectX::XMVECTOR px = DirectX::XMVectorScale(xAxis, xStage);
-                DirectX::XMVECTOR py = DirectX::XMVectorScale(yAxis, yStage);
-                DirectX::XMVECTOR point = DirectX::XMVectorAdd(localUp, px);
-                point = DirectX::XMVectorAdd(point, py);
-                point = DirectX::XMVector3Normalize(point);
-                DirectX::XMStoreFloat3(&vert.position, point);
-
-                triangleVertices.push_back(vert);
-            }
+            noiseValue += amplitude * (signal + 1.0f) * (0.5f);
+            frequency *= planetDescripton.layers[0].roughness;
+            amplitude *= planetDescripton.layers[0].persistance;
         }
+        noiseValue = (0 > (noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
+        noiseValue *= planetDescripton.layers[0].strength;
+
+        float planetRadius = 1.0f;
+        float elevation = planetRadius * (1 + noiseValue);
+        if (elevation > maxElevation) {
+            maxElevation = elevation;
+        }
+
+        if (elevation < minElevation) {
+            minElevation = elevation;
+        }
+
+        triangleVertices[i].position.x *= elevation;
+        triangleVertices[i].position.y *= elevation;
+        triangleVertices[i].position.z *= elevation;
     }
 
-    //std::uniform_real_distribution<float> distribution(-0.1f, 0.1f);
-    //std::mt19937 generator(std::random_device{}());
+    std::vector<std::pair<float, DirectX::XMFLOAT4>> gradient;
+    if (sun) {
+        gradient.push_back({ 0.1,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
+        gradient.push_back({ 0.5,  DirectX::XMFLOAT4(1, 0.3, 0, 1) });
+        gradient.push_back({ 0.95,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
+        gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0, 0, 0, 1) });
+    }
+    else if (asteroid) {
+        gradient.push_back({ 0.1,  DirectX::XMFLOAT4(0.3, 0.3, 0.4, 1) });
+        gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0.3,0.4, 0.4, 1) });
 
+    }
+    else if (id == 2) {
+        gradient.push_back({ 0.2,  DirectX::XMFLOAT4(0, 0, 1, 1) });
+        gradient.push_back({ 0.3,  DirectX::XMFLOAT4(1, 1, 0, 1) });
+        gradient.push_back({ 0.5,  DirectX::XMFLOAT4(0, 1, 0, 1) });
+        gradient.push_back({ 0.8,  DirectX::XMFLOAT4(0.5, 0.25, 0, 1) });
+        gradient.push_back({ 1,  DirectX::XMFLOAT4(1, 1, 1, 1) });
 
-    //if (!sun)
-    {
+    }
+    else {
 
+        gradient.push_back({ 0.2,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 0.3,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 0.5,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 0.8,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+        gradient.push_back({ 1,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
+    }
 
+    for (int i = 0; i < triangleVertices.size(); i++) {
+        DirectX::XMVECTOR positionVector = DirectX::XMLoadFloat3(&triangleVertices[i].position);
+        float elevation = DirectX::XMVectorGetX(DirectX::XMVector3Length(positionVector));
+        float normalizedElevation = (elevation - minElevation) / (maxElevation - minElevation);
 
-        Noise noise(id);
+        for (int idx = 0; idx < gradient.size(); idx++) {
+            std::pair<float, DirectX::XMFLOAT4> color = gradient[idx];
 
+            std::pair<float, DirectX::XMFLOAT4> nextColor = (idx < gradient.size() - 1) ? gradient[idx + 1] : color;
 
-        float minElevation = FLT_MAX;
-        float maxElevation = FLT_MIN;
+            if (color.first > normalizedElevation) {
 
-
-
-        for (int i = 0; i < 6 * resolution * resolution; i++) {
-
-            float noiseValue = 0.0f;
-            float amplitude = 1.0f;
-            float frequency = planetDescripton.layers[0].baseRoughness;
-
-
-            for (int s = 0; s < planetDescripton.layers[0].steps; s++) {
-
-                DirectX::XMFLOAT3 point = DirectX::XMFLOAT3(
-                    triangleVertices[i].position.x * frequency + planetDescripton.layers[0].centre.x,
-                    triangleVertices[i].position.y * frequency + planetDescripton.layers[0].centre.y,
-                    triangleVertices[i].position.z * frequency + planetDescripton.layers[0].centre.z
-                );
-                float signal = noise.Evaluate(point);
-
-                noiseValue += amplitude * (signal + 1.0f) * (0.5f);
-                frequency *= planetDescripton.layers[0].roughness;
-                amplitude *= planetDescripton.layers[0].persistance;
-            }
-            noiseValue = (0 > (noiseValue - planetDescripton.layers[0].minValue)) ? 0.0f : noiseValue - planetDescripton.layers[0].minValue;
-            noiseValue *= planetDescripton.layers[0].strength;
-
-            float planetRadius = 1.0f;
-            float elevation = planetRadius * (1 + noiseValue);
-            if (elevation > maxElevation) {
-                maxElevation = elevation;
-            }
-
-            if (elevation < minElevation) {
-                minElevation = elevation;
-            }
-
-            triangleVertices[i].position.x *= elevation;
-            triangleVertices[i].position.y *= elevation;
-            triangleVertices[i].position.z *= elevation;
-
-        }
-
-
-
-        std::vector<std::pair<float, DirectX::XMFLOAT4>> gradient;
-        if (sun) {
-            gradient.push_back({ 0.1,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
-            gradient.push_back({ 0.5,  DirectX::XMFLOAT4(1, 0.3, 0, 1) });
-            gradient.push_back({ 0.95,  DirectX::XMFLOAT4(1, 0.15, 0, 1) });
-            gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0, 0, 0, 1) });
-        }
-        else if (asteroid) {
-            gradient.push_back({ 0.1,  DirectX::XMFLOAT4(0.3, 0.3, 0.4, 1) });
-            gradient.push_back({ 1.0,  DirectX::XMFLOAT4(0.3,0.4, 0.4, 1) });
-
-        }
-        else if (id == 2) {
-
-
-            gradient.push_back({ 0.2,  DirectX::XMFLOAT4(0, 0, 1, 1) });
-            gradient.push_back({ 0.3,  DirectX::XMFLOAT4(1, 1, 0, 1) });
-            gradient.push_back({ 0.5,  DirectX::XMFLOAT4(0, 1, 0, 1) });
-            gradient.push_back({ 0.8,  DirectX::XMFLOAT4(0.5, 0.25, 0, 1) });
-            gradient.push_back({ 1,  DirectX::XMFLOAT4(1, 1, 1, 1) });
-
-        }
-        else {
-
-            gradient.push_back({ 0.2,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
-            gradient.push_back({ 0.3,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
-            gradient.push_back({ 0.5,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
-            gradient.push_back({ 0.8,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
-            gradient.push_back({ 1,  DirectX::XMFLOAT4(randFloat(), randFloat(), randFloat(), 1.0f) });
-        }
-
-        for (int i = 0; i < 6 * resolution * resolution; i++) {
-            DirectX::XMVECTOR positionVector = DirectX::XMLoadFloat3(&triangleVertices[i].position);
-            float elevation = DirectX::XMVectorGetX(DirectX::XMVector3Length(positionVector));
-            float normalizedElevation = (elevation - minElevation) / (maxElevation - minElevation);
-
-
-
-            for (int idx = 0; idx < gradient.size(); idx++) {
-                std::pair<float, DirectX::XMFLOAT4> color = gradient[idx];
-
-                std::pair<float, DirectX::XMFLOAT4> nextColor = (idx < gradient.size() - 1) ? gradient[idx + 1] : color;
-
-                if (color.first > normalizedElevation) {
-
-                    float distRange = nextColor.first - color.first;
-                    if (distRange > 0.0f) {
-                        float dist = normalizedElevation - color.first;
-                        float percentage = dist / distRange;
-                        DirectX::XMFLOAT4 gradientCol = DirectX::XMFLOAT4(
-                            color.second.x * (1.0f - percentage) + nextColor.second.x * percentage,
-                            color.second.y * (1.0f - percentage) + nextColor.second.y * percentage,
-                            color.second.z * (1.0f - percentage) + nextColor.second.z * percentage,
-                            1.0f
-                        );
-                        triangleVertices[i].color = gradientCol;
-                    }
-                    else {
-                        triangleVertices[i].color = color.second;
-                    }
-
-
-                    break;
+                float distRange = nextColor.first - color.first;
+                if (distRange > 0.0f) {
+                    float dist = normalizedElevation - color.first;
+                    float percentage = dist / distRange;
+                    DirectX::XMFLOAT4 gradientCol = DirectX::XMFLOAT4(
+                        color.second.x * (1.0f - percentage) + nextColor.second.x * percentage,
+                        color.second.y * (1.0f - percentage) + nextColor.second.y * percentage,
+                        color.second.z * (1.0f - percentage) + nextColor.second.z * percentage,
+                        1.0f
+                    );
+                    triangleVertices[i].color = gradientCol;
+                }
+                else {
+                    triangleVertices[i].color = color.second;
                 }
 
+                break;
             }
 
-
-
-        }
-
-    }
-
-
-
-
-    // Indexes
-    triangleIndices = std::vector<DWORD>{ };
-    for (int face = 0; face < 6; face++) {
-
-        for (int y = 0; y < resolution - 1; y++) {
-            for (int x = 0; x < resolution - 1; x++) {
-                int vertexId = x + y * resolution + face* resolution* resolution;
-                triangleIndices.push_back(vertexId);
-                triangleIndices.push_back(vertexId + resolution);
-                triangleIndices.push_back(vertexId + resolution + 1);
-                triangleIndices.push_back(vertexId);
-                triangleIndices.push_back(vertexId + resolution + 1);
-                triangleIndices.push_back(vertexId + 1);
-            }
         }
     }
 
     // Calculate smooth normals:
     // First, loop over all triangles and calculate per-triangle normal.
     // Then add that normal to each vertex's normal.
-    for (int i = 0; i < triangleIndices.size() - 2; i++)
+    for (int i = 0; i < triangleIndices.size() - 2; i+=3)
     {
         // Create two vectors along two edges, staring in one vetex.
         DirectX::XMVECTOR edge1, edge2, vert1, vert2, vert3;

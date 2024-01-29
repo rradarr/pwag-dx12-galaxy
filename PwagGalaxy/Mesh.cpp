@@ -91,6 +91,199 @@ void Mesh::CreateFromFile(const std::string fileName)
     indexBufferView.SizeInBytes = indexBufferSize;
 }
 
+void Mesh::CreateCube(std::vector<Vertex>& vertices, std::vector<DWORD>& indices, const int resolution)
+{
+    assert(resolution > 1);
+
+    int vertexRowLength = (resolution - 1) * 4;
+
+    int sideVertexTotal = resolution * (resolution - 1);
+    int topBottomVertexTotal = (resolution - 2) * (resolution - 2);
+    int vertexTotal = ((sideVertexTotal * 4) + (2 * topBottomVertexTotal));
+    vertices.reserve(vertexTotal);
+
+    Vertex vert;
+    vert.color = DirectX::XMFLOAT4(1, 1, 1, 1);
+    vert.uvCoordinates = { 0.f, 0.f };
+    vert.normal = { 0.f, 0.f, 0.f };
+
+    // Generate the cube.
+
+    // Generate cube walls as one long vertex list (a plane that can be folded into the walls of a cube).
+    DirectX::XMVECTOR sideFaceNormals[] = {
+        DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),   // front
+        DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),  // right
+        DirectX::XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f),  // back
+        DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),   // left
+    };
+    DirectX::XMVECTOR globalUp = { 0.f, 1.f, 0.f, 0.f };
+    // Generate each wall with one less column of vertices at the edge.
+    for (int y = 0; y < resolution; y++)
+    {
+        for (int face = 0; face < 4; face++)
+        {
+            DirectX::XMVECTOR sideNormal = sideFaceNormals[face];
+            DirectX::XMVECTOR yAxis = globalUp;
+            DirectX::XMVECTOR xAxis = DirectX::XMVector3Cross(yAxis, sideNormal);
+
+            for (int x = 0; x < resolution - 1; x++)
+            {
+                float xPercent = (float)x / (resolution - 1);
+                float yPercent = (float)y / (resolution - 1);
+                float xStage = (xPercent - 0.5f) * 2.0f;
+                float yStage = (yPercent - 0.5f) * 2.0f;
+
+                DirectX::XMVECTOR px = DirectX::XMVectorScale(xAxis, xStage);
+                DirectX::XMVECTOR py = DirectX::XMVectorScale(yAxis, yStage);
+                DirectX::XMVECTOR point = DirectX::XMVectorAdd(sideNormal, px);
+                point = DirectX::XMVectorAdd(point, py);
+                //point = DirectX::XMVector3Normalize(point);
+                DirectX::XMStoreFloat3(&vert.position, point);
+
+                vertices.push_back(vert);
+            }
+        }
+    }
+
+    // Generate cube top and bootom (only inner/non-edge vertices).
+    DirectX::XMVECTOR TopBottomSideNormals[] = {
+        DirectX::XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f),   // top
+        DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),  // bottom
+    };
+    DirectX::XMVECTOR globalRight = { 1.f, 0.f, 0.f, 0.f };
+    for (int face = 0; face < 2; face++)
+    {
+        DirectX::XMVECTOR sideNormal = TopBottomSideNormals[face];
+        DirectX::XMVECTOR xAxis = DirectX::XMVectorNegate(DirectX::XMVector3Cross(sideNormal, globalRight));
+        if (face == 1)
+            xAxis = DirectX::XMVectorNegate(xAxis);
+        DirectX::XMVECTOR yAxis = DirectX::XMVectorNegate(globalRight);
+
+        // Generate only internal vertices (no top and bottom row, and no left and right column).
+        for (int y = 1; y < resolution - 1; y++)
+        {
+            for (int x = 1; x < resolution - 1; x++)
+            {
+                float xPercent = (float)x / (resolution - 1);
+                float yPercent = (float)y / (resolution - 1);
+                float xStage = (xPercent - 0.5f) * 2.0f;
+                float yStage = (yPercent - 0.5f) * 2.0f;
+
+                DirectX::XMVECTOR px = DirectX::XMVectorScale(xAxis, xStage);
+                DirectX::XMVECTOR py = DirectX::XMVectorScale(yAxis, yStage);
+                DirectX::XMVECTOR point = DirectX::XMVectorAdd(sideNormal, px);
+                point = DirectX::XMVectorAdd(point, py);
+                //point = DirectX::XMVector3Normalize(point);
+                DirectX::XMStoreFloat3(&vert.position, point);
+
+                vertices.push_back(vert);
+            }
+        }
+    }
+
+    // Generate the indices.
+    int indexTotal = 36 * (resolution - 1) * (resolution - 1); // (6 faces * squares per face * 2 tris per square * 3 indices per tris)
+    indices.reserve(indexTotal);
+
+    // Generate indices for sides.
+    for (int y = 0; y < resolution - 1; y++) {
+        for (int x = 0; x < vertexRowLength - 1; x++) {
+            int vertexId = x + y * vertexRowLength;
+
+            indices.push_back(vertexId);
+            indices.push_back(vertexId + 1);
+            indices.push_back(vertexId + vertexRowLength + 1);
+
+            indices.push_back(vertexId);
+            indices.push_back(vertexId + vertexRowLength + 1);
+            indices.push_back(vertexId + vertexRowLength);
+        }
+    }
+    // Connect sides at last edge.
+    for (int y = 0; y < resolution - 1; y++) {
+        int vertexId = (vertexRowLength - 1) + y * vertexRowLength;
+
+        indices.push_back(vertexId);
+        indices.push_back(y * vertexRowLength);
+        indices.push_back((y + 1) * vertexRowLength);
+
+        indices.push_back(vertexId);
+        indices.push_back((y + 1) * vertexRowLength);
+        indices.push_back(vertexId + vertexRowLength);
+    }
+
+    // Create pseudo sides for top and bottom, for easier triangulation.
+    std::vector<int> topSideHelper;
+    topSideHelper.reserve(resolution * resolution);
+    for (int i = 0; i < resolution; i++) {
+        topSideHelper.push_back(i); // indices of 'top' edge.
+    }
+    // fill the middle space with vertex indices.
+    for (int y = 0; y < resolution - 2; y++) {
+        topSideHelper.push_back(4 * (resolution - 1) - 1 - y); // left vertex of this row
+        for (int x = 0; x < resolution - 2; x++) {
+            topSideHelper.push_back(4 * sideVertexTotal + x + y * (resolution - 2));
+        }
+        topSideHelper.push_back(resolution + y); // right vertex of this row
+    }
+    for (int i = 3 * (resolution - 1); i >= 2 * (resolution - 1); i--) {
+        topSideHelper.push_back(i); // indices of 'bottom' edge.
+    }
+
+    std::vector<int> bottomSideHelper;
+    bottomSideHelper.reserve(resolution * resolution);
+    for (int i = 0; i < resolution; i++) {
+        bottomSideHelper.push_back(i + (resolution - 1) * vertexRowLength); // indices of 'top' edge.
+    }
+    // fill the middle space with vertex indices.
+    for (int y = 0; y < resolution - 2; y++) {
+        bottomSideHelper.push_back(4 * (resolution - 1) - 1 - y + (resolution - 1) * vertexRowLength); // left vertex of this row
+        for (int x = 0; x < resolution - 2; x++) {
+            bottomSideHelper.push_back(4 * sideVertexTotal + topBottomVertexTotal + x + y * (resolution - 2));
+        }
+        bottomSideHelper.push_back(resolution + y + (resolution - 1) * vertexRowLength); // right vertex of this row
+    }
+    for (int i = 3 * (resolution - 1) + (resolution - 1) * vertexRowLength; i >= 2 * (resolution - 1) + (resolution - 1) * vertexRowLength; i--) {
+        bottomSideHelper.push_back(i); // indices of 'bottom' edge.
+    }
+
+    // Generate indices for top and bottom using the heplers.
+    for (int y = 0; y < resolution - 1; y++) {
+        for (int x = 0; x < resolution - 1; x++) {
+            int helperIdPos = x + y * resolution; // Position of the index we want in the hepler vertex.
+            indices.push_back(topSideHelper[helperIdPos]);
+            indices.push_back(topSideHelper[helperIdPos + resolution + 1]);
+            indices.push_back(topSideHelper[helperIdPos + 1]);
+
+            indices.push_back(topSideHelper[helperIdPos + resolution + 1]);
+            indices.push_back(topSideHelper[helperIdPos]);
+            indices.push_back(topSideHelper[helperIdPos + resolution]);
+        }
+    }
+    for (int y = 0; y < resolution - 1; y++) {
+        for (int x = 0; x < resolution - 1; x++) {
+            int helperIdPos = x + y * resolution; // Position of the index we want in the hepler vertex.
+            indices.push_back(bottomSideHelper[helperIdPos]);
+            indices.push_back(bottomSideHelper[helperIdPos + 1]);
+            indices.push_back(bottomSideHelper[helperIdPos + resolution + 1]);
+
+            indices.push_back(bottomSideHelper[helperIdPos]);
+            indices.push_back(bottomSideHelper[helperIdPos + resolution + 1]);
+            indices.push_back(bottomSideHelper[helperIdPos + resolution]);
+        }
+    }
+}
+
+void Mesh::CreateSphere(std::vector<Vertex>& vertices, std::vector<DWORD>& indices, const int resolution)
+{
+    CreateCube(vertices, indices, resolution);
+    for (int i = 0; i < vertices.size(); i++) {
+        DirectX::XMVECTOR position = DirectX::XMLoadFloat3(&vertices[i].position);
+        position = DirectX::XMVector3Normalize(position);
+        DirectX::XMStoreFloat3(&vertices[i].position, position);
+    }
+}
+
 void Mesh::InsertDrawIndexed(ComPtr<ID3D12GraphicsCommandList> commandList)
 {
     // Should the root descriptor he here too? -> possibly should be level up, in some DrawableObject class

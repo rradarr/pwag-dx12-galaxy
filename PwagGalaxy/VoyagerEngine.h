@@ -135,8 +135,9 @@ private:
     void WaitForPreviousFrame();
 
     void SetLightPosition();
-    void CreateSphere(PlanetConfiguration planetDescripton, float orbit, bool sun = false, bool asteroid = false);
-    void GenerateSphereVertices(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun = false, bool asteroid = false);
+    void CreatePlanet(PlanetConfiguration planetDescripton, float orbit, bool sun = false, bool asteroid = false);
+    void GeneratePlanet(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun = false, bool asteroid = false);
+    //void MyGenerateSphere(std::vector<Vertex>& triangleVertices, std::vector<DWORD>& triangleIndices, PlanetConfiguration planetDescripton, int id, bool sun, bool asteroid);
     float EstimateNewOrbit(PlanetConfiguration planetDescription);
 
     void OnEarlyUpdate();

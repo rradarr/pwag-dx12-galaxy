@@ -20,6 +20,9 @@ public:
     // Load a model (vertices, indices, UVs and vertex colors) from an .obj file.
     void CreateFromFile(const std::string fileName);
 
+    static void CreateCube(std::vector<Vertex>& vertices, std::vector<DWORD>& indices, const int resolution = 2);
+    static void CreateSphere(std::vector<Vertex>& vertices, std::vector<DWORD>& indices, const int resolution = 5);
+
     void InsertDrawIndexed(ComPtr<ID3D12GraphicsCommandList> commandList);
     void InsertBufferBind(ComPtr<ID3D12GraphicsCommandList> commandList);
 
